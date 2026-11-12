@@ -24,19 +24,27 @@ export const steps = [
 ]
 
 type Redemption = { code: string; at: string; synced: boolean }
-export type Demo = { delivered: boolean; online: boolean; redemptions: Redemption[] }
+type Delivery = {
+  batchId: number
+  quantity: number
+  supplierAt: string
+  receipt: { quantity: number; shopAt: string } | null
+}
+export type Demo = { delivery: Delivery | null; redemptions: Redemption[] }
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem' | 'removeItem'>
+type Result = { ok: boolean; state: Demo; message: string }
 
 export const scopeVouchers = (contractId: string, batchId: number, shop: string, quantity: number) => ({
   key: `stellar-relief:v1:${contractId}:${batchId}:${shop}`,
   codes: Array.from({ length: quantity }, (_, index) => `BR-${batchId}-${String(index + 1).padStart(2, '0')}`),
 })
 
-const freshDemo = (): Demo => ({ delivered: false, online: false, redemptions: [] })
-
 export function readDemo(storage: Storage, key: string): Demo {
   const saved = storage.getItem(key)
-  return saved ? JSON.parse(saved) : freshDemo()
+  if (!saved) return { delivery: null, redemptions: [] }
+  const { delivery, redemptions } = JSON.parse(saved)
+  // A previous one-click delivery is not a separate shop receipt.
+  return { delivery: delivery ?? null, redemptions }
 }
 
 export function storeDemo(storage: Storage, key: string, state: Demo) {
@@ -47,12 +55,41 @@ export function resetDemo(storage: Storage, key: string) {
   storage.removeItem(key)
 }
 
-export function redeem(state: Demo, vouchers: string[], input: string, at: string) {
-  const code = input.trim().toUpperCase()
-  if (!vouchers.includes(code)) return { ok: false, state, message: 'Unknown voucher for this batch and shop.' }
-  if (state.redemptions.some((record) => record.code === code)) {
-    return { ok: false, state, message: `${code} was already redeemed on this browser.` }
+const fail = (state: Demo, message: string): Result => ({ ok: false, state, message })
+
+export function recordDelivery(state: Demo, batchId: number, quantity: number, maximum: number, at: string): Result {
+  if (state.delivery) return fail(state, 'A delivery is already recorded for this batch.')
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > maximum) {
+    return fail(state, `Enter a whole quantity from 1 to ${maximum} kits.`)
   }
+  return {
+    ok: true,
+    state: { ...state, delivery: { batchId, quantity, supplierAt: at, receipt: null } },
+    message: 'Delivery recorded. Waiting for the shop to confirm.',
+  }
+}
+
+export function confirmReceipt(state: Demo, batchId: number, quantity: number, at: string): Result {
+  const delivery = state.delivery
+  if (!delivery || delivery.batchId !== batchId) return fail(state, 'This batch has no supplier delivery to confirm.')
+  if (delivery.receipt) return fail(state, 'The shop has already confirmed this delivery.')
+  if (quantity !== delivery.quantity) return fail(state, 'Received quantity must match the supplier record.')
+  return {
+    ok: true,
+    state: { ...state, delivery: { ...delivery, receipt: { quantity, shopAt: at } } },
+    message: 'Receipt confirmed on this browser.',
+  }
+}
+
+export function redeem(state: Demo, batchId: number, vouchers: string[], input: string, at: string): Result {
+  const code = input.trim().toUpperCase()
+  if (!vouchers.includes(code)) return fail(state, 'Unknown voucher for this batch and shop.')
+  if (state.redemptions.some((record) => record.code === code)) {
+    return fail(state, `${code} was already redeemed on this browser.`)
+  }
+  const delivery = state.delivery
+  if (!delivery?.receipt || delivery.batchId !== batchId) return fail(state, 'Confirm the shop receipt before redeeming a voucher.')
+  if (state.redemptions.length >= delivery.receipt.quantity) return fail(state, 'All confirmed kits have already been collected.')
   return {
     ok: true,
     state: { ...state, redemptions: [...state.redemptions, { code, at, synced: false }] },
@@ -60,9 +97,24 @@ export function redeem(state: Demo, vouchers: string[], input: string, at: strin
   }
 }
 
-export function reconcile(state: Demo): Demo {
-  if (!state.online) return state
-  return { ...state, redemptions: state.redemptions.map((record) => ({ ...record, synced: true })) }
+export function reconcile(state: Demo, online: boolean): Result {
+  if (!online) return fail(state, 'Reconnect before running simulated reconciliation.')
+  return {
+    ok: true,
+    state: { ...state, redemptions: state.redemptions.map((record) => ({ ...record, synced: true })) },
+    message: 'Reconciled locally for the demo. Nothing was sent.',
+  }
+}
+
+export function deliveryTimeline(state: Demo) {
+  const delivery = state.delivery
+  const events = state.redemptions.map(({ code, at, synced }) => ({
+    actor: 'Local Shop', detail: `Redeemed ${code}`, at,
+    status: synced ? 'Reconciled (demo)' : 'Pending sync',
+  }))
+  if (delivery) events.unshift({ actor: 'Supplier', detail: `Recorded delivery of ${delivery.quantity} kits`, at: delivery.supplierAt, status: '' })
+  if (delivery?.receipt) events.splice(1, 0, { actor: 'Local Shop', detail: `Confirmed receipt of ${delivery.receipt.quantity} kits`, at: delivery.receipt.shopAt, status: '' })
+  return events.sort((a, b) => a.at.localeCompare(b.at))
 }
 
 export function advanceReplay(phase: number, delta: number) {

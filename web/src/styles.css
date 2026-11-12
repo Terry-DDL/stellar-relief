@@ -173,3 +173,8 @@ footer { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wr
 @media (prefers-reduced-motion: no-preference) {
   .button, .sidebar nav a { transition: background-color 120ms ease; }
 }
+
+.timeline { margin: 0; padding-left: 1.3rem; display: grid; gap: .65rem; }
+.timeline li { padding-left: .25rem; }
+.timeline time { display: block; color: var(--muted); font-size: .8rem; }
+.notice .error { color: var(--danger, #9f2727); }

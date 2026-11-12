@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import evidence from './evidence.json'
-import { advanceReplay, readDemo, reconcile, redeem, resetDemo, scopeVouchers, steps, storeDemo, story } from './demo'
+import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, reconcile, recordDelivery, redeem, resetDemo, scopeVouchers, steps, storeDemo, story } from './demo'
 import type { Demo, Role } from './demo'
+import { useConnectivity } from './connectivity'
+import { verifyTestnet } from './testnet'
 import './styles.css'
 
 const { asset, batch, roles, transactions, snapshots } = evidence
@@ -91,7 +93,7 @@ function Replay({ phase, setPhase, close }: { phase: number; setPhase: (next: nu
       <button className="button secondary" disabled={first} onClick={() => setPhase(advanceReplay(phase, -1))}>Back</button>
       <button className="button primary" disabled={last} onClick={() => setPhase(advanceReplay(phase, 1))}>Next step <Icon name="arrow" size={16} /></button>
     </div>
-    <small>Replay changes this panel only. The actual Testnet batch remains Settled.</small>
+    <small>Replay changes this panel only. The recorded Testnet batch is Settled.</small>
   </section>
 }
 
@@ -127,7 +129,73 @@ function Agency({ openReplay }: { openReplay: () => void }) {
   </>
 }
 
-function Supplier({ demo, update }: { demo: Demo; update: (state: Demo) => void }) {
+type DemoAction = (state: Demo) => ReturnType<typeof recordDelivery>
+type ApplyAction = (action: DemoAction) => Promise<ReturnType<DemoAction>>
+
+function DeliveryForm({ role, demo, apply }: { role: 'supplier' | 'shop'; demo: Demo; apply: ApplyAction }) {
+  const [quantity, setQuantity] = useState('')
+  const [notice, setNotice] = useState({ text: '', error: false })
+  const supplier = role === 'supplier'
+  const delivery = demo.delivery
+  const showForm = supplier ? !delivery : Boolean(delivery && !delivery.receipt)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    const at = new Date().toISOString()
+    const result = await apply((state) => supplier
+      ? recordDelivery(state, batch.id, Number(quantity), batch.quantity, at)
+      : confirmReceipt(state, batch.id, Number(quantity), at))
+    setNotice({ text: result.message, error: !result.ok })
+  }
+
+  return <Card title={supplier ? 'Supply delivery' : 'Shop receipt'} extra={<Tag tone="amber">Local demo</Tag>}>
+    <p className="card-description">{batchLabel} · {story.roles.shop.name} · Expected {batch.quantity} kits</p>
+    <p className="card-description">{delivery
+      ? delivery.receipt ? `Shop confirmed ${delivery.receipt.quantity} kits.` : `Supplier recorded ${delivery.quantity} kits. Awaiting shop confirmation.`
+      : 'Waiting for the supplier delivery record.'}</p>
+    {showForm && <form className="voucher-form" onSubmit={submit}>
+      <label htmlFor="delivery-quantity">{supplier ? 'Quantity delivered' : 'Quantity received'}</label>
+      <div><input id="delivery-quantity" type="number" min="1" max={batch.quantity} step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+        <button className="button primary">{supplier ? 'Record demo delivery' : 'Confirm demo receipt'}</button></div>
+    </form>}
+    <p className={`notice ${notice.error ? 'error' : ''}`} role="status">{notice.text}</p>
+    <small>Demo roles share this browser. The records use device timestamps and have no identity signatures.</small>
+  </Card>
+}
+
+function LiveVerification({ online }: { online: boolean }) {
+  const [checking, setChecking] = useState(false)
+  const [report, setReport] = useState<Awaited<ReturnType<typeof verifyTestnet>> | null>(null)
+  const [error, setError] = useState('')
+
+  async function check() {
+    setReport(null)
+    setError('')
+    setChecking(true)
+    try {
+      setReport(await verifyTestnet(evidence))
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Could not verify the live Testnet state.')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return <Card title="Live Testnet verification" extra={<Tag tone="gray">Read only</Tag>}>
+    <p className="card-description">Compare the current contract and batch with the recorded Testnet run.</p>
+    <button className="button secondary" disabled={checking || !online} onClick={() => { void check() }}>Verify on Stellar Testnet</button>
+    <div role="status" className="notice">
+      {checking && <p>Reading the current Testnet state…</p>}
+      {!online && <p>Offline. Reconnect to verify live data.</p>}
+      {error && <p className="error">Verification unavailable. {error}</p>}
+      {online && report && <p><strong>{report.mismatches.length ? 'Live state differs from the recorded evidence.' : 'Live state matches the recorded evidence.'}</strong>
+        {` Batch status: ${report.status}. RPC ledger: ${report.ledger.toLocaleString('en')}.`}
+        {report.mismatches.length > 0 && ` Different fields: ${report.mismatches.join(', ')}.`}</p>}
+    </div>
+  </Card>
+}
+
+function Supplier({ demo, apply }: { demo: Demo; apply: ApplyAction }) {
   return <>
     <div className="grid">
       <Card title="Locked funding" extra={<Tag tone="gray">Historical</Tag>}>
@@ -141,31 +209,26 @@ function Supplier({ demo, update }: { demo: Demo; update: (state: Demo) => void 
         <Link href={transactions.settle.url}>View settlement transaction</Link>
       </Card>
     </div>
-    <Card title="Supply delivery" extra={<Tag tone="amber">Local demo</Tag>}>
-      <div className="operation">
-        <span className="tile-icon"><Icon name="wholesaler" /></span>
-        <div><strong>{batch.quantity} {story.kit.toLowerCase()} · {story.roles.shop.name}</strong><p>{demo.delivered ? 'Delivered · recorded on this browser' : 'Awaiting dispatch and delivery'}</p></div>
-        <button className="button primary" disabled={demo.delivered} onClick={() => update({ ...demo, delivered: true })}>Record demo delivery</button>
-      </div>
-    </Card>
+    <DeliveryForm role="supplier" demo={demo} apply={apply} />
     <Card title="Escrow proof" extra={<Link href={evidence.contractUrl}>View contract</Link>}><Transactions /></Card>
   </>
 }
 
-function Shop({ demo, update, reset }: { demo: Demo; update: (state: Demo) => void; reset: () => void }) {
+function Shop({ demo, apply, reset, online, cached }: { demo: Demo; apply: ApplyAction; reset: () => void | Promise<void>; online: boolean; cached: boolean }) {
   const [input, setInput] = useState('')
   const [notice, setNotice] = useState({ text: '', error: false })
   const pending = demo.redemptions.filter((record) => !record.synced).length
-  const submit = (event: FormEvent) => {
+  const confirmed = demo.delivery?.receipt?.quantity
+  const unusedStatus = confirmed === undefined ? 'Awaiting receipt'
+    : demo.redemptions.length >= confirmed ? 'No confirmed stock' : 'Available'
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const result = redeem(readDemo(localStorage, key), codes, input, new Date().toISOString())
-    if (result.ok) {
-      update(result.state)
-      setInput('')
-    }
+    const result = await apply((state) => redeem(state, batch.id, codes, input, new Date().toISOString()))
+    if (result.ok) setInput('')
     setNotice({ text: result.message, error: !result.ok })
   }
   return <>
+    <DeliveryForm role="shop" demo={demo} apply={apply} />
     <div className="grid">
       <Card title="Redeem a paper voucher" extra={<Tag tone="amber">Local demo</Tag>}>
         <p className="card-description">{batchLabel} · {story.roles.shop.name}</p>
@@ -175,32 +238,43 @@ function Shop({ demo, update, reset }: { demo: Demo; update: (state: Demo) => vo
         </form>
         <p className={`notice ${notice.error ? 'error' : ''}`} role="status">{notice.text}</p>
       </Card>
-      <Card title="Connection & reconciliation" extra={<Tag tone={demo.online ? 'teal' : 'gray'}>{demo.online ? 'Simulated online' : 'Offline'}</Tag>}>
-        <p className="card-description">{pending} pending sync · Records are stored on this browser. Reconciliation only changes their local status.</p>
-        <div className="shop-actions">
-          <button className="button secondary" onClick={() => update({ ...demo, online: !demo.online })}>{demo.online ? 'Simulate offline' : 'Simulate online'}</button>
-          <button className="button primary" disabled={!demo.online || pending === 0} onClick={() => { update(reconcile(demo)); setNotice({ text: 'Local records reconciled in the demo.', error: false }) }}>Reconcile records</button>
-        </div>
+      <Card title="Connection & reconciliation" extra={<Tag tone={online ? 'teal' : 'gray'}>{online ? 'Browser online' : 'Browser offline'}</Tag>}>
+        <p className="card-description">{pending} pending sync · {cached ? 'App cached for offline reopening.' : 'Offline reopening requires the cached production app.'}</p>
+        <p className="card-description">Records remain on this browser. Reconciliation only changes their local demo status.</p>
+        <button className="button secondary" disabled={!online || pending === 0} onClick={async () => {
+          const result = await apply((state) => reconcile(state, navigator.onLine))
+          setNotice({ text: result.message, error: !result.ok })
+        }}>Simulate reconciliation</button>
       </Card>
     </div>
     <Card title="Batch vouchers" extra={<Tag tone="gray">{demo.redemptions.length} of {codes.length} redeemed</Tag>}>
       <div className="voucher-list">
         {codes.map((code) => {
           const record = demo.redemptions.find((item) => item.code === code)
-          return <article key={code}><code>{code}</code><span>{record ? <time dateTime={record.at}>{new Date(record.at).toLocaleString()}</time> : '1 relief kit'}</span><Tag tone={record?.synced ? 'teal' : record ? 'amber' : 'gray'}>{record?.synced ? 'Reconciled (demo)' : record ? 'Pending sync' : 'Available'}</Tag></article>
+          return <article key={code}><code>{code}</code><span>{record ? <time dateTime={record.at}>{new Date(record.at).toLocaleString()}</time> : '1 relief kit'}</span><Tag tone={record?.synced ? 'teal' : record ? 'amber' : 'gray'}>{record?.synced ? 'Reconciled (demo)' : record ? 'Pending sync' : unusedStatus}</Tag></article>
         })}
       </div>
-      <div className="reset-row"><small>Clears local delivery and voucher records and closes replay.</small><button className="button secondary" onClick={() => { reset(); setInput(''); setNotice({ text: 'Demo reset on this browser.', error: false }) }}>Reset demo</button></div>
+      <div className="reset-row"><small>Clears local delivery and voucher records and closes replay.</small><button className="button secondary" onClick={async () => {
+        try {
+          await reset()
+          setInput('')
+          setNotice({ text: 'Demo reset on this browser.', error: false })
+        } catch {
+          setNotice({ text: 'Could not reset browser storage.', error: true })
+        }
+      }}>Reset demo</button></div>
     </Card>
   </>
 }
 
-function Verification({ demo }: { demo: Demo }) {
+function Verification({ demo, online }: { demo: Demo; online: boolean }) {
+  const timeline = deliveryTimeline(demo)
   return <>
     <div className="grid">
       <Card title="Field records" extra={<Tag tone="amber">Local demo</Tag>}>
         <dl className="details"><div><dt>Expected quantity</dt><dd>{batch.quantity} kits</dd></div>
-          <div><dt>Delivery recorded</dt><dd>{demo.delivered ? 'Yes' : 'Pending'}</dd></div>
+          <div><dt>Supplier delivery</dt><dd>{demo.delivery ? `${demo.delivery.quantity} kits` : 'Pending'}</dd></div>
+          <div><dt>Shop receipt</dt><dd>{demo.delivery?.receipt ? `${demo.delivery.receipt.quantity} kits confirmed` : 'Pending'}</dd></div>
           <div><dt>Voucher redemptions</dt><dd>{demo.redemptions.length} / {batch.quantity}</dd></div>
           <div><dt>Locally reconciled</dt><dd>{demo.redemptions.filter((item) => item.synced).length} / {batch.quantity}</dd></div>
         </dl>
@@ -211,6 +285,13 @@ function Verification({ demo }: { demo: Demo }) {
         <Allocation /><Link href={transactions.settle.url}>View confirmed settlement</Link>
       </Card>
     </div>
+    <Card title="Delivery audit timeline" extra={<Tag tone="amber">Local demo</Tag>}>
+      <p className="card-description">{batchLabel} · Browser records with device timestamps. Entries are unsigned, editable locally, and have no effect on escrow.</p>
+      {timeline.length === 0 ? <p className="card-description">No field events recorded yet.</p> : <ol className="timeline">
+        {timeline.map(({ actor, detail, at, status }) => <li key={detail}><strong>{actor} · {detail}</strong>{status && <small> · {status}</small>} <time dateTime={at}>{new Date(at).toLocaleString()}</time></li>)}
+      </ol>}
+    </Card>
+    <LiveVerification online={online} />
     <Card title="USDC balance snapshots" extra={<Tag>Recorded Testnet reads</Tag>}>
       <div className="table-scroll"><table><thead><tr><th scope="col">Account</th><th scope="col">Before funding</th><th scope="col">Funded</th><th scope="col">Settled</th></tr></thead>
         <tbody>{(['agency', 'escrow', 'wholesaler', 'shop'] as const).map((role) => <tr key={role}>
@@ -232,7 +313,7 @@ function Verification({ demo }: { demo: Demo }) {
 const pages: Record<Role, { title: string; detail: string }> = {
   agency: { title: 'Agency overview', detail: 'Monitor funding and distribution for your relief batch.' },
   wholesaler: { title: 'Supplier workspace', detail: 'Review escrow proof, delivery, and the confirmed supplier payout.' },
-  shop: { title: 'Voucher redemption', detail: 'Record aid collection at the shop, even during a simulated outage.' },
+  shop: { title: 'Voucher redemption', detail: 'Confirm receipt and record aid collection, even offline after the app is cached.' },
   verifier: { title: 'Verification & settlement', detail: 'Review delivery records and inspect the verified Testnet payout.' },
 }
 
@@ -242,6 +323,7 @@ function currentRole(): Role {
 }
 
 function App() {
+  const { online, cached } = useConnectivity()
   const [role, setRole] = useState(currentRole)
   const [demo, setDemo] = useState(() => readDemo(localStorage, key))
   const [replay, setReplay] = useState<number | null>(null)
@@ -252,14 +334,27 @@ function App() {
     addEventListener('storage', onStorage)
     return () => { removeEventListener('hashchange', onHash); removeEventListener('storage', onStorage) }
   }, [])
-  function update(state: Demo) {
-    storeDemo(localStorage, key, state)
-    setDemo(state)
+  async function apply(action: DemoAction) {
+    const run = () => {
+      const current = readDemo(localStorage, key)
+      const result = action(current)
+      if (result.ok) storeDemo(localStorage, key, result.state)
+      setDemo(result.state)
+      return result
+    }
+    try {
+      return await (navigator.locks ? navigator.locks.request(key, run) : run())
+    } catch {
+      return { ok: false, state: demo, message: 'Could not save this record in browser storage.' }
+    }
   }
   function reset() {
-    resetDemo(localStorage, key)
-    setDemo(readDemo(localStorage, key))
-    setReplay(null)
+    const run = () => {
+      resetDemo(localStorage, key)
+      setDemo(readDemo(localStorage, key))
+      setReplay(null)
+    }
+    return navigator.locks ? navigator.locks.request(key, run) : run()
   }
   return <div className="shell">
     <aside className="sidebar">
@@ -271,14 +366,14 @@ function App() {
       <div className="sidebar-foot"><span className="network-dot" /><div><strong>{evidence.network}</strong><small>Recorded evidence</small></div></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><p>{story.subtitle}</p><Tag>{batchLabel} · {batch.status}</Tag></header>
+      <header className="topbar"><p>{story.subtitle}</p><Tag>{batchLabel} · {batch.status} (recorded)</Tag></header>
       <main>
         <div className="page-heading"><div><h1>{pages[role].title}</h1><p>{pages[role].detail}</p></div><Link href={evidence.contractUrl}>Open Testnet contract</Link></div>
         {replay !== null && <Replay phase={replay} setPhase={setReplay} close={() => setReplay(null)} />}
         {role === 'agency' && <Agency openReplay={() => setReplay(0)} />}
-        {role === 'wholesaler' && <Supplier demo={demo} update={update} />}
-        {role === 'shop' && <Shop demo={demo} update={update} reset={reset} />}
-        {role === 'verifier' && <Verification demo={demo} />}
+        {role === 'wholesaler' && <Supplier demo={demo} apply={apply} />}
+        {role === 'shop' && <Shop demo={demo} apply={apply} reset={reset} online={online} cached={cached} />}
+        {role === 'verifier' && <Verification demo={demo} online={online} />}
         <footer><span>Stellar Relief · Testnet demonstration</span><Link href={`https://stellar.expert/explorer/testnet/contract/${asset.sac}`}>USDC asset contract</Link></footer>
       </main>
     </div>

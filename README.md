@@ -17,8 +17,8 @@ The agency funds the batch upfront and records who is authorized to verify it. A
 ## How It Works
 
 1. The agency funds a batch and registers the supplier, shop, verifier, and payout amounts.
-2. The supplier verifies the escrow and records delivery in the demo.
-3. The shop records three paper voucher redemptions. The demo can reconcile the records locally when connectivity is simulated.
+2. The supplier verifies the escrow and records a batch delivery in the demo. The shop independently enters and confirms the received quantity.
+3. The shop records voucher redemptions up to the confirmed quantity, including offline after the production app is cached. After reconnecting, it can mark records reconciled locally.
 4. The authorized verifier submits the quantity. Soroban atomically pays the supplier and shop and marks the batch settled.
 
 For a 100 USDC relief batch, the intended split is 70 USDC for the supplier and 30 USDC for the shop. The recorded Testnet run used **10 USDC → 7 USDC + 3 USDC**.
@@ -31,7 +31,9 @@ Stellar gives agencies and suppliers a shared transaction record they can inspec
 
 - USDC escrow with agency funding authorization, verifier-only settlement, quantity validation, and duplicate-settlement protection.
 - Agency, Supplier, Local Shop, and Verification views.
-- Three local paper vouchers with redemption history, duplicate rejection, and simulated reconciliation.
+- Separate supplier and shop actions with a batch-scoped audit timeline and redemption count.
+- Three local paper vouchers with offline entry, reload persistence, duplicate rejection, and simulated reconciliation.
+- Read-only Testnet lookup that compares live contract state with the recorded run.
 - Historical Replay of the verified batch, with field operations labeled as simulations.
 
 ## System Architecture
@@ -90,7 +92,9 @@ npm --prefix web ci
 npm --prefix web run dev -- --host 127.0.0.1
 ```
 
-Open the local URL printed by Vite. Start Historical Replay from **Agency**, record a demo delivery from **Supplier**, or try vouchers `BR-1-01`, `BR-1-02`, and `BR-1-03` in **Local Shop**. The web demo requires no wallet or environment variables. The production build was verified on Apple silicon.
+Open the local URL printed by Vite. Start Historical Replay from **Agency**, record three kits from **Supplier**, and confirm the same quantity from **Local Shop**. Try vouchers `BR-1-01`, `BR-1-02`, and `BR-1-03`. The web demo requires no wallet or environment variables. The production build was verified on Apple silicon.
+
+For offline reopening, use the production build on HTTPS or localhost. See the [evidence and offline technical notes](docs/evidence-offline.md) for the walkthrough and verification limits.
 
 ## Smart Contract Functions
 
@@ -111,15 +115,16 @@ CARGO_TARGET_DIR=target/usdc-build stellar contract build
 python3 -B -m unittest -q
 npm --prefix web run build
 npm --prefix web test
+npm --prefix web run test:offline
 npm --prefix web run test:browser
 ```
 
-The browser test requires Google Chrome. The standard frontend evidence test uses the checked-in extract. If the original local report is present, compare it with the same JSON using `node web/scripts/evidence.mjs --original`. These commands run tests or build artifacts. The Python E2E runner is a separate tool that can submit Testnet transactions.
+The browser test requires Google Chrome and a loopback listener. The standard frontend evidence test uses the checked-in extract. If the original local report is present, compare it with the same JSON using `node web/scripts/evidence.mjs --original`. These commands run tests or build artifacts. The Python E2E runner is a separate tool that can submit Testnet transactions.
 
 ## Security & Limitations
 
 - This is a Testnet prototype with one batch per contract instance and a fixed quantity of three. It has no production audit.
-- Replay reads historical evidence. Delivery, paper voucher redemption, and reconciliation are browser-local simulations. The contract verifies the signer and declared quantity. Physical delivery and voucher eligibility remain outside the contract.
+- Replay reads historical evidence. Supplier delivery and shop receipt are unsigned demo records. Vouchers persist and reject duplicate codes within the same browser. Reconciliation is simulated. The contract verifies the signer and declared quantity. Physical delivery and voucher eligibility remain outside the contract.
 - The demo does not support global fiat on-ramps, real-world delivery verification, cross-device sync, or local fiat off-ramps.
 - Keep signing identities, raw checkpoints, local run evidence, and environment files outside the public repository.
 
