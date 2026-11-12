@@ -39,4 +39,4 @@ Public prototype at https://github.com/Terry-DDL/stellar-relief
 
 ## Devpost URL
 
-Pending project creation and submission.
+Devpost draft preview: https://devpost.com/software/stellar-relief — do not paste this into Airtable until the Devpost project is submitted and the public link is verified.

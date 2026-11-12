@@ -51,11 +51,13 @@ We plan to test the workflow with aid agencies, suppliers, and shops. In particu
 - Settlement transaction: https://stellar.expert/explorer/testnet/tx/0ae91cd2ba8aea76a0ab470dd08f844a9290111666ce6582918ce4522ff8dda4
 - Demo video: pending recording and public upload
 - Live app: pending deployment; local setup is in the README
-- Devpost project URL: pending creation
+- Devpost draft preview (visible to the project owner while unsubmitted): https://devpost.com/software/stellar-relief
 
 ## Submission checklist
 
-- [ ] Create and submit the Devpost project using this draft.
+- [x] Create the Devpost project draft with its name and elevator pitch.
+- [ ] Add this project story and complete the remaining Devpost fields.
+- [ ] Submit the Devpost project when the team is ready. The project is currently a draft.
 - [ ] Add all team members to the Devpost project.
 - [ ] Record the one-minute functioning-prototype demo and add its public link.
 - [ ] Add the public repository, Testnet contract, and transaction links.
