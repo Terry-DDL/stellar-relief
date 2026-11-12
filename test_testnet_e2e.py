@@ -13,6 +13,7 @@ import testnet_e2e as e
 class Fake:
     def __init__(self):
         self.status = None
+        self.amount = 100
         self.sent = []
         self.confirmed = {}
         self.break_after = None
@@ -25,9 +26,10 @@ class Fake:
         pass
 
     def prepare(self, record, data):
+        self.amount = data["amount_usdc"]
         for role, address in self.addresses.items():
             record(role, address)
-        return self.contract, "native-id"
+        return self.contract, e.SAC
 
     def validate(self, data, *, deployed=False):
         if deployed:
@@ -39,12 +41,15 @@ class Fake:
 
     def snapshot(self, data):
         batch = {"status": [self.status]} if self.status else None
-        balances = {"escrow": 0, "wholesaler": 50, "shop": 60}
+        balances = {"escrow": 0, "agency": 200 * e.STROOPS, "wholesaler": 50, "shop": 60}
+        whole, shop = e.payout_units(self.amount)
+        if self.status in ("Funded", "Settled"):
+            balances["agency"] -= whole + shop
         if self.status == "Funded":
-            balances["escrow"] = 100 * e.STROOPS
+            balances["escrow"] = whole + shop
         if self.status == "Settled":
-            balances["wholesaler"] += 70 * e.STROOPS
-            balances["shop"] += 30 * e.STROOPS
+            balances["wholesaler"] += whole
+            balances["shop"] += shop
         return {"status": self.status, "batch": batch, "balances": balances}
 
     def build(self, stage, data):
@@ -84,9 +89,9 @@ class RecoveryTests(unittest.TestCase):
         self.run.mkdir()
         self.chain = Fake()
 
-    def execute(self, resume=False, override=False):
+    def execute(self, resume=False, override=False, amount=None):
         with redirect_stdout(StringIO()):
-            e.execute(self.run, self.chain, self.handoff, resume=resume, allow_inconclusive=override)
+            e.execute(self.run, self.chain, self.handoff, resume=resume, allow_inconclusive=override, amount_usdc=amount)
 
     def interrupted(self, stage):
         self.chain.break_after = stage
@@ -99,6 +104,27 @@ class RecoveryTests(unittest.TestCase):
         self.execute(resume=True)
         self.assertEqual(self.chain.sent, ["upload", "deploy", "fund", "settle"])
         self.assertEqual(self.handoff.read_text().count("run-id: run"), 1)
+
+    def test_small_usdc_run_reports_actual_amount_and_cannot_change_it(self):
+        self.execute(amount=10)
+        self.assertIn("10 USDC → 7 USDC (wholesaler) + 3 USDC (shop)", self.handoff.read_text())
+        checkpoint = e.read_checkpoint(self.run)
+        self.assertEqual(checkpoint["snapshots"]["funded"]["balances"]["escrow"], 100_000_000)
+        with self.assertRaisesRegex(RuntimeError, "Cannot change USDC amount"):
+            self.execute(resume=True, amount=100)
+        self.execute(resume=True)
+        self.assertEqual(self.chain.sent, ["upload", "deploy", "fund", "settle"])
+
+    def test_legacy_xlm_checkpoint_is_rejected_before_network(self):
+        legacy = self.stop_at_preflight()
+        legacy["schema"] = 1
+        legacy.pop("asset")
+        legacy.pop("amount_usdc")
+        e.write_checkpoint(self.run, legacy)
+        with patch.object(self.chain, "preflight", side_effect=AssertionError("unexpected RPC")):
+            with self.assertRaisesRegex(RuntimeError, "USDC run"):
+                self.execute(resume=True)
+        self.assertEqual(self.chain.sent, [])
 
     def stop_at_preflight(self):
         with patch.object(self.chain, "preflight", side_effect=e.RpcError("HTTP 403")):
@@ -268,6 +294,40 @@ class HttpTests(unittest.TestCase):
         self.assertIsNone(get.get_header("Content-type"))
 
 
+class USDCAccountTests(unittest.TestCase):
+    def test_account_checks_use_issuer_reserves_liabilities_and_capacity(self):
+        addresses = {role: role for role in e.ROLES}
+        def wallet(role):
+            balances = [{"asset_type": "native", "balance": "10", "selling_liabilities": "0"}]
+            if role != "verifier":
+                balances.append({"asset_type": "credit_alphanum4", "asset_code": "USDC",
+                                 "asset_issuer": e.ISSUER, "is_authorized": True, "limit": "200",
+                                 "balance": "105" if role == "agency" else "0",
+                                 "selling_liabilities": "5", "buying_liabilities": "0"})
+            return {"account_id": role, "subentry_count": len(balances) - 1, "balances": balances}
+
+        accounts = {role: wallet(role) for role in addresses}
+        agency_line = accounts["agency"]["balances"][1]
+        shop_line = accounts["shop"]["balances"][1]
+        with patch.object(e, "account", side_effect=accounts.get), patch.object(e, "request_json",
+             return_value={"_embedded": {"records": [{"base_reserve_in_stroops": 5_000_000}]}}), \
+             redirect_stdout(StringIO()):
+            e.check_usdc_accounts(addresses, 100, funding=True)
+            agency_line["balance"] = "104"
+            with self.assertRaisesRegex(RuntimeError, "99 spendable USDC"):
+                e.check_usdc_accounts(addresses, 100, funding=True)
+            e.check_usdc_accounts(addresses, 100, funding=False)
+            shop_line["buying_liabilities"] = "198"
+            with self.assertRaisesRegex(RuntimeError, "shop: trustline capacity 2"):
+                e.check_usdc_accounts(addresses, 10, funding=False)
+            shop_line["asset_issuer"] = "wrong issuer"
+            with self.assertRaisesRegex(RuntimeError, "shop: missing or unauthorized"):
+                e.check_usdc_accounts(addresses, 10, funding=False)
+            accounts["agency"]["balances"][0]["balance"] = "2"
+            with self.assertRaisesRegex(RuntimeError, "agency: 0.5 XLM above reserve"):
+                e.check_usdc_accounts(addresses, 10, funding=False)
+
+
 class AuthorizationTests(unittest.TestCase):
     def test_generic_unauthorized_or_malformed_response_is_inconclusive(self):
         diagnostic = r"Error\(Auth,\s*InvalidAction\)"
@@ -324,7 +384,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_actual_cli_encodes_unsigned_deployment_with_constructor(self):
         salt = "ab" * 32
-        xdr = e.deployment_envelope(self.agency, salt, e.WASM_HASH, 41)
+        xdr = e.deployment_envelope(self.agency, salt, e.WASM_HASH, 41, e.SAC)
         decoded = json.loads(e.xdr_cli("tx", "decode", value=xdr))["tx"]
         self.assertEqual(decoded["signatures"], [])
         self.assertEqual(decoded["tx"]["source_account"], self.agency)
@@ -332,13 +392,13 @@ class DeploymentTests(unittest.TestCase):
         host = e.invocation(decoded["tx"])["host_function"]["create_contract_v2"]
         self.assertEqual(host["contract_id_preimage"]["address"], {"address": self.agency, "salt": salt})
         self.assertEqual(host["executable"], {"wasm": e.WASM_HASH})
-        self.assertEqual(host["constructor_args"], [{"address": self.agency}])
+        self.assertEqual(host["constructor_args"], [{"address": self.agency}, {"address": e.SAC}])
 
     def test_public_key_without_local_signer_stops_before_hash_or_submit(self):
         chain = e.Testnet(Path("."))
         data = {"addresses": {"agency": self.agency}, "contract": self.contract,
-                "salt": "ab" * 32, "wasm_hash": e.WASM_HASH}
-        unsigned = e.deployment_envelope(self.agency, data["salt"], e.WASM_HASH, 41)
+                "salt": "ab" * 32, "wasm_hash": e.WASM_HASH, "sac": e.SAC}
+        unsigned = e.deployment_envelope(self.agency, data["salt"], e.WASM_HASH, 41, e.SAC)
         decoded = json.loads(e.xdr_cli("tx", "decode", value=unsigned))
         result = e.encoded_xdr("ScVal", {"address": self.contract})
         cli = e.xdr_cli

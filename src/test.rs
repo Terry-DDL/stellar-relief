@@ -4,7 +4,7 @@ use soroban_sdk::{
         Address as _, AuthorizedFunction, AuthorizedInvocation, EnvTestConfig, MockAuth,
         MockAuthInvoke,
     },
-    xdr, IntoVal, Symbol,
+    xdr, Bytes, IntoVal, Symbol,
 };
 use std::{rc::Rc, string::ToString};
 
@@ -13,10 +13,37 @@ const TOTAL: i128 = 1_000_000_000;
 const WHOLESALER: i128 = 700_000_000;
 const SHOP: i128 = 300_000_000;
 
+fn seed_classic_account(env: &Env, account_id: xdr::AccountId, balance: i64) {
+    env.host()
+        .add_ledger_entry(
+            &Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount {
+                account_id: account_id.clone(),
+            })),
+            &Rc::new(xdr::LedgerEntry {
+                last_modified_ledger_seq: 0,
+                data: xdr::LedgerEntryData::Account(xdr::AccountEntry {
+                    account_id,
+                    balance,
+                    seq_num: xdr::SequenceNumber(0),
+                    num_sub_entries: 0,
+                    inflation_dest: None,
+                    flags: 0,
+                    home_domain: Default::default(),
+                    thresholds: xdr::Thresholds([1; 4]),
+                    signers: Default::default(),
+                    ext: xdr::AccountEntryExt::V0,
+                }),
+                ext: xdr::LedgerEntryExt::V0,
+            }),
+            None,
+        )
+        .unwrap();
+}
+
 struct Fixture {
     env: Env,
     contract: Address,
-    xlm: Address,
+    asset: Address,
     agency: Address,
     wholesaler: Address,
     shop: Address,
@@ -36,39 +63,79 @@ impl Fixture {
         let account_id =
             xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256([7; 32])));
         let agency = Address::from_str(&env, &account_id.to_string());
-        env.host()
-            .add_ledger_entry(
-                &Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount {
-                    account_id: account_id.clone(),
-                })),
-                &Rc::new(xdr::LedgerEntry {
-                    last_modified_ledger_seq: 0,
-                    data: xdr::LedgerEntryData::Account(xdr::AccountEntry {
-                        account_id,
-                        balance,
-                        seq_num: xdr::SequenceNumber(0),
-                        num_sub_entries: 0,
-                        inflation_dest: None,
-                        flags: 0,
-                        home_domain: Default::default(),
-                        thresholds: xdr::Thresholds([1; 4]),
-                        signers: Default::default(),
-                        ext: xdr::AccountEntryExt::V0,
-                    }),
-                    ext: xdr::LedgerEntryExt::V0,
-                }),
-                None,
-            )
-            .unwrap();
+        seed_classic_account(&env, account_id, balance);
 
-        let contract = env.register(StellarRelief, (&agency,));
+        let contract = env.register(StellarRelief, (&agency, &xlm));
         Self {
             wholesaler: Address::generate(&env),
             shop: Address::generate(&env),
             verifier: Address::generate(&env),
             env,
             contract,
-            xlm,
+            asset: xlm,
+            agency,
+        }
+    }
+
+    fn usdc(balance: i128) -> Self {
+        use xdr::WriteXdr;
+        let env = Env::new_with_config(EnvTestConfig {
+            capture_snapshot_at_drop: false,
+        });
+        let issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+        let issuer_id: xdr::AccountId = issuer.parse().unwrap();
+        seed_classic_account(&env, issuer_id.clone(), STARTING_BALANCE);
+        let usdc = xdr::AlphaNum4 {
+            asset_code: xdr::AssetCode4(*b"USDC"),
+            issuer: issuer_id,
+        };
+        let bytes = xdr::Asset::CreditAlphanum4(usdc.clone())
+            .to_xdr(xdr::Limits::none())
+            .unwrap();
+        let sac = env
+            .deployer()
+            .with_stellar_asset(Bytes::from_slice(&env, &bytes))
+            .deploy();
+        let classic_wallet = |seed, balance| {
+            let id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256(
+                [seed; 32],
+            )));
+            seed_classic_account(&env, id.clone(), STARTING_BALANCE);
+            let asset = xdr::TrustLineAsset::CreditAlphanum4(usdc.clone());
+            env.host()
+                .add_ledger_entry(
+                    &Rc::new(xdr::LedgerKey::Trustline(xdr::LedgerKeyTrustLine {
+                        account_id: id.clone(),
+                        asset: asset.clone(),
+                    })),
+                    &Rc::new(xdr::LedgerEntry {
+                        last_modified_ledger_seq: 0,
+                        data: xdr::LedgerEntryData::Trustline(xdr::TrustLineEntry {
+                            account_id: id.clone(),
+                            asset,
+                            balance,
+                            limit: i64::MAX,
+                            flags: xdr::TrustLineFlags::AuthorizedFlag as u32,
+                            ext: xdr::TrustLineEntryExt::V0,
+                        }),
+                        ext: xdr::LedgerEntryExt::V0,
+                    }),
+                    None,
+                )
+                .unwrap();
+            Address::from_str(&env, &id.to_string())
+        };
+        let agency = classic_wallet(7, i64::try_from(balance).unwrap());
+        let wholesaler = classic_wallet(9, 0);
+        let shop = classic_wallet(10, 0);
+        let contract = env.register(StellarRelief, (&agency, &sac));
+        Self {
+            wholesaler,
+            shop,
+            verifier: Address::generate(&env),
+            env,
+            contract,
+            asset: sac,
             agency,
         }
     }
@@ -78,7 +145,7 @@ impl Fixture {
     }
 
     fn token(&self) -> token::TokenClient<'_> {
-        token::TokenClient::new(&self.env, &self.xlm)
+        token::TokenClient::new(&self.env, &self.asset)
     }
 
     fn fund(&self, id: u32) -> Batch {
@@ -112,7 +179,7 @@ impl Fixture {
                     )),
                     sub_invocations: std::vec![AuthorizedInvocation {
                         function: AuthorizedFunction::Contract((
-                            self.xlm.clone(),
+                            self.asset.clone(),
                             Symbol::new(&self.env, "transfer"),
                             (&self.agency, &self.contract, TOTAL).into_val(&self.env),
                         )),
@@ -393,4 +460,66 @@ fn rolls_back_first_payment_if_second_payment_is_short_one_stroop() {
         f.client().mock_all_auths().settle_batch(&42, &3).status,
         BatchStatus::Settled
     );
+}
+
+#[test]
+fn usdc_escrow_and_settlement_use_seven_decimal_units() {
+    for (whole, shop) in [(700_000_000, 300_000_000), (70_000_000, 30_000_000)] {
+        let amount = whole + shop;
+        let f = Fixture::usdc(amount);
+        assert_eq!(f.token().decimals(), 7);
+        assert_eq!(
+            f.try_fund(42, 3, whole + 1, shop, true),
+            Err(Ok(ReliefError::InvalidAmounts))
+        );
+        let funded = f.try_fund(42, 3, whole, shop, true).unwrap().unwrap();
+        assert_eq!(funded.status, BatchStatus::Funded);
+        assert_eq!(funded.total_amount, amount);
+        assert_eq!(f.client().get_batch(&42), Some(funded.clone()));
+        assert_eq!(f.token().balance(&f.agency), 0);
+        assert_eq!(f.token().balance(&f.contract), amount);
+        assert!(f.client().try_settle_batch(&42, &3).is_err());
+        assert_eq!(
+            f.client().mock_all_auths().try_settle_batch(&42, &2),
+            Err(Ok(ReliefError::InvalidQuantity))
+        );
+        assert_eq!(f.client().get_batch(&42), Some(funded));
+
+        let settled = f.client().mock_all_auths().settle_batch(&42, &3);
+        assert_eq!(settled.status, BatchStatus::Settled);
+        assert_eq!(f.client().get_batch(&42), Some(settled));
+        assert_eq!(
+            f.client().mock_all_auths().try_settle_batch(&42, &3),
+            Err(Ok(ReliefError::BatchAlreadySettled))
+        );
+        assert_eq!(f.token().balance(&f.wholesaler), whole);
+        assert_eq!(f.token().balance(&f.shop), shop);
+        assert_eq!(f.token().balance(&f.contract), 0);
+    }
+}
+
+#[test]
+fn insufficient_usdc_creates_no_batch() {
+    let f = Fixture::usdc(TOTAL - 1);
+    assert!(f.try_fund(42, 3, WHOLESALER, SHOP, true).is_err());
+    assert_eq!(f.token().balance(&f.agency), TOTAL - 1);
+    assert_eq!(f.token().balance(&f.contract), 0);
+    assert_eq!(f.client().get_batch(&42), None);
+}
+
+#[test]
+fn usdc_second_payout_without_trustline_rolls_back_first_payout() {
+    let mut f = Fixture::usdc(TOTAL);
+    let shop_id = xdr::AccountId(xdr::PublicKey::PublicKeyTypeEd25519(xdr::Uint256([8; 32])));
+    f.shop = Address::from_str(&f.env, &shop_id.to_string());
+    seed_classic_account(&f.env, shop_id, STARTING_BALANCE);
+    let funded = f.fund(42);
+    assert!(f
+        .client()
+        .mock_all_auths()
+        .try_settle_batch(&42, &3)
+        .is_err());
+    assert_eq!(f.token().balance(&f.wholesaler), 0);
+    assert_eq!(f.token().balance(&f.contract), TOTAL);
+    assert_eq!(f.client().get_batch(&42), Some(funded));
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Stellar Relief demo once on Testnet using Stellar CLI 30."""
+"""Run the Stellar Relief USDC demo on Testnet using Stellar CLI 30."""
 import argparse
 import copy
 import fcntl
@@ -21,8 +21,8 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 PROJECT = Path(__file__).resolve().parent
-WASM = PROJECT / "target/wasm32v1-none/release/stellar_relief.wasm"
-WASM_HASH = "36c330c2d1f7747dd8d17ad80fbad49edd98ad98a83b26ebafa66efa21bd0a91"
+WASM = PROJECT / "target/usdc-build/wasm32v1-none/release/stellar_relief.wasm"
+WASM_HASH = "4b763614f798027da3ed93126242ee947410cce3bfb563ccf107c7d0328bdeb8"
 RPC = "https://soroban-testnet.stellar.org"
 PASSPHRASE = "Test SDF Network ; September 2015"
 HORIZON = "https://horizon-testnet.stellar.org"
@@ -31,12 +31,15 @@ NETWORK = ["--rpc-url", RPC, "--network-passphrase", PASSPHRASE]
 ROLES = ("agency", "verifier", "wholesaler", "shop")
 ALIASES = {role: f"relief-e2e-{role}" for role in ROLES}
 BATCH = "1"
-STROOPS = 10_000_000
+STROOPS = 10_000_000  # Both USDC and XLM use seven decimal places.
+ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+ASSET = f"USDC:{ISSUER}"
+SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
 # Explicit endpoints and identities take precedence over user shell overrides.
 CLI_ENV = {k: v for k, v in os.environ.items() if not k.startswith("STELLAR_") and k != "RUST_LOG"}
 CLI_ENV.update({"NO_COLOR": "1", "TERM": "dumb"})
 STAGES = ("upload", "deploy", "fund", "settle")
-RUN_ROOT = PROJECT / "target" / "testnet-e2e"
+RUN_ROOT = PROJECT / "target" / "testnet-e2e-usdc"
 
 
 def require(condition, message):
@@ -107,32 +110,42 @@ def account(address):
         return None
 
 
-def prepare_identities(log, record):
-    names, _ = cli(log, "identity-list", "keys", "ls")
-    existing = set(names.split())
-    addresses = {}
-    for role, alias in ALIASES.items():
-        if alias not in existing:
-            cli(log, f"{role}-create", "keys", "generate", alias)
-        address, _ = cli(log, f"{role}-address", "keys", "address", alias)
-        require(re.fullmatch(r"G[A-Z2-7]{55}", address), f"{role}: invalid public account address")
-        record(role, address)
+def payout_units(amount_usdc):
+    require(type(amount_usdc) is int and amount_usdc in (10, 100), "USDC amount must be 10 or 100")
+    return amount_usdc * 7 * STROOPS // 10, amount_usdc * 3 * STROOPS // 10
+
+
+def check_usdc_accounts(addresses, amount_usdc, *, funding):
+    whole, shop = payout_units(amount_usdc)
+    # Check the current base reserve, including trustlines and sponsorship.
+    ledger = request_json(f"{HORIZON}/ledgers?order=desc&limit=1", phase="Horizon base reserve")
+    base_reserve = Decimal(ledger["_embedded"]["records"][0]["base_reserve_in_stroops"]) / STROOPS
+    for role in ROLES:
+        address = addresses[role]
         data = account(address)
-        if data is None:
-            cli(log, f"{role}-friendbot", "keys", "fund", alias, *NETWORK)
-            for _ in range(8):
-                data = account(address)
-                if data is not None:
-                    break
-                time.sleep(2)
-        require(data is not None, f"{role}: account missing from Testnet Horizon")
+        require(data is not None and data["account_id"] == address, f"{role}: missing Testnet account")
         native = next(b for b in data["balances"] if b["asset_type"] == "native")
-        minimum = Decimal(110 if role == "agency" else 2)
-        balance = Decimal(native["balance"])
-        available = balance - Decimal(native.get("selling_liabilities", "0"))
-        require(available >= minimum, f"{role}: only {available} spendable-before-reserve XLM; need at least {minimum}")
-        addresses[role] = address
-    require(len(set(addresses.values())) == 4, "The four public addresses must be distinct")
+        reserve = base_reserve * (2 + data["subentry_count"] + data.get("num_sponsoring", 0)
+                                  - data.get("num_sponsored", 0))
+        free_xlm = Decimal(native["balance"]) - Decimal(native.get("selling_liabilities", "0")) - reserve
+        fee_buffer = Decimal(1 if role in ("agency", "verifier") else 0)
+        require(free_xlm >= fee_buffer, f"{role}: {free_xlm} XLM above reserve; need {fee_buffer}")
+        if role == "verifier":
+            print(f"{role}: {address}; free XLM {free_xlm}")
+            continue
+        line = next((b for b in data["balances"] if b.get("asset_code") == "USDC"
+                     and b.get("asset_issuer") == ISSUER), None)
+        require(line is not None and line.get("is_authorized") is True,
+                f"{role}: missing or unauthorized USDC trustline for {ISSUER}")
+        balance = Decimal(line["balance"])
+        if role == "agency" and funding:
+            available = balance - Decimal(line.get("selling_liabilities", "0"))
+            require(available >= amount_usdc, f"agency: {available} spendable USDC; need {amount_usdc}")
+        if role != "agency":
+            capacity = Decimal(line["limit"]) - balance - Decimal(line.get("buying_liabilities", "0"))
+            need = Decimal(whole if role == "wholesaler" else shop) / STROOPS
+            require(capacity >= need, f"{role}: trustline capacity {capacity} USDC; need {need}")
+        print(f"{role}: {address}; {balance} USDC; free XLM {free_xlm}")
 
 
 def write_checkpoint(folder, data):
@@ -188,12 +201,12 @@ def encoded_xdr(type_name, value):
     return xdr_cli("xdr", "encode", "--type", type_name, value=json.dumps(value))
 
 
-def deployment_envelope(agency, salt, wasm_hash, sequence):
+def deployment_envelope(agency, salt, wasm_hash, sequence, asset):
     """Encode an unsigned CreateContractV2 using the installed WASM hash."""
     host = {"create_contract_v2": {
         "contract_id_preimage": {"address": {"address": agency, "salt": salt}},
         "executable": {"wasm": wasm_hash},
-        "constructor_args": [{"address": agency}],
+        "constructor_args": [{"address": agency}, {"address": asset}],
     }}
     op = {"source_account": None, "body": {
         "invoke_host_function": {"host_function": host, "auth": []},
@@ -249,6 +262,16 @@ class Testnet:
     def preflight(self):
         require(hashlib.sha256(WASM.read_bytes()).hexdigest() == WASM_HASH, "WASM hash mismatch")
         require(rpc("getNetwork")["passphrase"] == PASSPHRASE, "RPC did not identify itself as Testnet")
+        key = self.contract_instance_key(self.usdc_id())
+        entries = rpc("getLedgerEntries", {"keys": [key]}).get("entries")
+        require(isinstance(entries, list) and [entry["key"] for entry in entries] == [key],
+                "Verified Testnet USDC SAC is missing from the ledger")
+
+    @staticmethod
+    def contract_instance_key(address):
+        return encoded_xdr("LedgerKey", {"contract_data": {
+            "contract": address, "key": "ledger_key_contract_instance", "durability": "persistent",
+        }})
 
     def contract_id(self, data):
         address, _ = cli(self.folder, "contract-id", "contract", "id", "wasm", *NETWORK,
@@ -256,14 +279,24 @@ class Testnet:
         require(account_key(address, "C"), "Invalid predicted contract ID")
         return address
 
-    def prepare(self, record, data):
-        prepare_identities(self.folder, record)
-        return self.contract_id(data), self.native_xlm_id()
+    def read_identities(self):
+        addresses = {role: xdr_cli("keys", "address", alias, value="") for role, alias in ALIASES.items()}
+        require(all(account_key(address, "G") for address in addresses.values())
+                and len(set(addresses.values())) == 4, "Need four distinct Testnet account addresses")
+        return addresses
 
-    def native_xlm_id(self):
-        xlm, _ = cli(self.folder, "native-xlmid", "contract", "id", "asset", *NETWORK, "--asset", "native")
-        require(account_key(xlm, "C"), "Invalid native XLM SAC address")
-        return xlm
+    def prepare(self, record, data):
+        addresses = self.read_identities()
+        sac = self.usdc_id()
+        check_usdc_accounts(addresses, data["amount_usdc"], funding=True)
+        for role, address in addresses.items():
+            record(role, address)
+        return self.contract_id(data), sac
+
+    def usdc_id(self):
+        address = xdr_cli("contract", "id", "asset", *NETWORK, "--asset", ASSET, value="")
+        require(address == SAC, "CLI-derived USDC SAC does not match expected Testnet asset")
+        return address
 
     def validate(self, data, *, deployed=False):
         require(rpc("getNetwork")["passphrase"] == PASSPHRASE, "Network mismatch")
@@ -273,7 +306,7 @@ class Testnet:
             actual, _ = cli(self.folder, f"validate-{role}", "keys", "address", ALIASES[role])
             require(account_key(address, "G") and actual == address, f"Identity changed: {role}")
         require(self.contract_id(data) == data["contract"], "Contract ID does not match run salt and agency")
-        require(self.native_xlm_id() == data["xlm"], "Native XLM asset contract does not match checkpoint")
+        require(self.usdc_id() == data["sac"], "USDC SAC does not match checkpoint")
         if deployed:
             binary = subprocess.run(
                 ["stellar", "contract", "fetch", *NETWORK, "--id", data["contract"]],
@@ -285,10 +318,7 @@ class Testnet:
         require(data["transactions"]["upload"]["status"] == "SUCCESS",
                 "WASM upload is not confirmed")
         code_key = encoded_xdr("LedgerKey", {"contract_code": {"hash": data["wasm_hash"]}})
-        instance_key = encoded_xdr("LedgerKey", {"contract_data": {
-            "contract": data["contract"], "key": "ledger_key_contract_instance",
-            "durability": "persistent",
-        }})
+        instance_key = self.contract_instance_key(data["contract"])
         result = rpc("getLedgerEntries", {"keys": [code_key, instance_key]})
         entries = result.get("entries")
         require(isinstance(entries, list) and isinstance(result.get("latestLedger"), int),
@@ -308,6 +338,7 @@ class Testnet:
         return out
 
     def snapshot(self, data):
+        whole, shop = payout_units(data["amount_usdc"])
         batch = json.loads(self.invoke(data, "get_batch", ["--batch-id", BATCH]))
         status = None
         if batch is not None:
@@ -315,16 +346,16 @@ class Testnet:
             if isinstance(status, list) and len(status) == 1:
                 status = status[0]
             require(status in ("Funded", "Settled"), f"Unknown batch status: {status}")
-            expected = {"id": BATCH, "quantity": 3, "total_amount": 100 * STROOPS,
-                        "wholesaler_amount": 70 * STROOPS, "shop_amount": 30 * STROOPS,
+            expected = {"id": BATCH, "quantity": 3, "total_amount": whole + shop,
+                        "wholesaler_amount": whole, "shop_amount": shop,
                         **data["addresses"]}
             for field, value in expected.items():
                 require(str(batch.get(field)) == str(value), f"Unexpected batch field: {field}")
-        owners = {"escrow": data["contract"], "wholesaler": data["addresses"]["wholesaler"],
+        owners = {"escrow": data["contract"], "agency": data["addresses"]["agency"], "wholesaler": data["addresses"]["wholesaler"],
                   "shop": data["addresses"]["shop"]}
         balances = {}
         for name, owner in owners.items():
-            balances[name] = int(json.loads(self.invoke(data, "balance", ["--id", owner], contract=data["xlm"])))
+            balances[name] = int(json.loads(self.invoke(data, "balance", ["--id", owner], contract=data["sac"])))
         return {"status": status, "batch": batch, "balances": balances}
 
     def simulate(self, envelope, mode):
@@ -406,13 +437,16 @@ class Testnet:
             agency = addresses["agency"]
             source = account(agency)
             require(source is not None and source["account_id"] == agency, "Agency account unavailable")
-            out = deployment_envelope(agency, data["salt"], data["wasm_hash"], int(source["sequence"]))
+            out = deployment_envelope(agency, data["salt"], data["wasm_hash"], int(source["sequence"]), data["sac"])
         elif stage == "fund":
+            check_usdc_accounts(addresses, data["amount_usdc"], funding=True)
+            whole, shop = payout_units(data["amount_usdc"])
             out = self.invoke(data, "fund_batch", [
                 "--batch-id", BATCH, "--quantity", "3", "--wholesaler", addresses["wholesaler"],
                 "--shop", addresses["shop"], "--verifier", addresses["verifier"],
-                "--wholesaler-amount", "700000000", "--shop-amount", "300000000"], build=True)
+                "--wholesaler-amount", str(whole), "--shop-amount", str(shop)], build=True)
         elif stage == "settle":
+            check_usdc_accounts(addresses, data["amount_usdc"], funding=False)
             out = self.settle_envelope(data, "3")
         else:
             raise RuntimeError(f"Unexpected stage: {stage}")
@@ -458,7 +492,7 @@ def is_preflight_only(folder, data):
     # The initial checkpoint is written before preflight. Identity preparation
     # creates evidence files, and submission must first persist its hash.
     empty_fields = ("addresses", "transactions", "snapshots", "checks")
-    initial_keys = {"schema", "run_id", "network", "wasm_hash", "batch_id", "salt", *empty_fields}
+    initial_keys = {"schema", "run_id", "network", "wasm_hash", "batch_id", "salt", "asset", "amount_usdc", *empty_fields}
     if data.keys() != initial_keys or any(data[field] != {} for field in empty_fields):
         return False
     if not isinstance(data["salt"], str) or not re.fullmatch(r"[0-9a-f]{64}", data["salt"]):
@@ -472,7 +506,7 @@ def is_preflight_only(folder, data):
     )
 
 
-def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False):
+def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False, amount_usdc=None):
     def save():
         write_checkpoint(folder, data)
 
@@ -515,20 +549,26 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False):
     initialize = not resume
     if resume:
         data = read_checkpoint(folder)
-        require(data["schema"] == 1 and data["run_id"] == folder.name and data["network"] == PASSPHRASE
+        require(data.get("schema") == 2 and data.get("asset") == ASSET
+                and data["run_id"] == folder.name and data["network"] == PASSPHRASE
                 and data["wasm_hash"] == WASM_HASH and data["batch_id"] == BATCH,
-                "Checkpoint does not match this run, Testnet, batch or WASM")
+                "Checkpoint does not match this USDC run, Testnet, batch or WASM")
+        require(amount_usdc is None or amount_usdc == data["amount_usdc"],
+                "Cannot change USDC amount when resuming")
         recorded = data["transactions"]
         require(isinstance(recorded, dict) and set(recorded) == set(STAGES[:len(recorded)]),
                 "Conflicting transaction stages; inspect the checkpoint manually")
         initialize = is_preflight_only(folder, data)
     else:
         require(not (folder / "checkpoint.json").exists(), "Run already exists; use --resume")
-        data = {"schema": 1, "run_id": folder.name, "network": PASSPHRASE, "wasm_hash": WASM_HASH,
+        data = {"schema": 2, "asset": ASSET, "amount_usdc": 100 if amount_usdc is None else amount_usdc,
+                "run_id": folder.name, "network": PASSPHRASE, "wasm_hash": WASM_HASH,
                 "batch_id": BATCH, "salt": uuid.uuid4().hex + uuid.uuid4().hex,
                 "addresses": {}, "transactions": {}, "snapshots": {}, "checks": {}}
         save()
 
+    whole, shop = payout_units(data["amount_usdc"])
+    total = whole + shop
     chain.preflight()
     if resume and not initialize:
         for stage in STAGES:
@@ -539,7 +579,7 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False):
                 "inspect the checkpoint and evidence manually.")
 
     if initialize:
-        data["contract"], data["xlm"] = chain.prepare(record, data)
+        data["contract"], data["sac"] = chain.prepare(record, data)
         save()
         submit("upload")
     if "deploy" not in data["transactions"]:
@@ -569,7 +609,7 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False):
     baseline = snapshots["before_funding"]["balances"]
     if current["status"] == "Funded":
         require("settle" not in transactions, "Confirmed settlement disagrees with Funded ledger state")
-        expected = {**baseline, "escrow": 100 * STROOPS}
+        expected = {**baseline, "escrow": total, "agency": baseline["agency"] - total}
         require(current["balances"] == expected, "Funding balance check failed")
         snapshots["funded"] = current
         data["checks"].update(chain.negative_checks(data))
@@ -586,8 +626,8 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False):
 
     require(current["status"] == "Settled" and "settle" in transactions,
             "Settlement state and confirmed receipt do not agree; verify manually")
-    expected = {"escrow": 0, "wholesaler": baseline["wholesaler"] + 70 * STROOPS,
-                "shop": baseline["shop"] + 30 * STROOPS}
+    expected = {"escrow": 0, "agency": baseline["agency"] - total,
+                "wholesaler": baseline["wholesaler"] + whole, "shop": baseline["shop"] + shop}
     require(current["balances"] == expected, "Settlement balance check failed")
     if data.get("report_complete"):
         require(current == snapshots["settled"], "Settled snapshot changed since the report")
@@ -612,17 +652,19 @@ def save_report(folder, handoff, data):
     lines = [f"\n## Step 3：{title}", "",
              f"- Network: Stellar Testnet (`{PASSPHRASE}`)",
              f"- Business Contract ID: [`{contract}`]({EXPLORER}/contract/{contract})",
-             f"- WASM Hash: `{WASM_HASH}`", f"- Native XLM SAC: `{data['xlm']}`",
+             f"- WASM Hash: `{WASM_HASH}`", f"- Asset: `{ASSET}` / SAC `{data['sac']}`",
+             f"- Settlement: {data['amount_usdc']} USDC → {data['amount_usdc'] * 7 // 10} USDC"
+             f" (wholesaler) + {data['amount_usdc'] * 3 // 10} USDC (shop)",
              f"- Batch ID: `{data['batch_id']}`", f"- Run ID: `{data['run_id']}`"]
     lines.extend(f"- {role}: `{address}`" for role, address in data["addresses"].items())
     for stage in STAGES:
         receipt = data["transactions"][stage]
         tx_hash = receipt["hash"]
         lines.append(f"- {stage} transaction: [`{tx_hash}`]({EXPLORER}/tx/{tx_hash}) — submitted and RPC SUCCESS, ledger {receipt['ledger']}.")
-    lines += ["", "| Snapshot (stroops) | Escrow | Wholesaler | Shop |", "| --- | ---: | ---: | ---: |"]
+    lines += ["", "| Snapshot (USDC base units) | Agency | Escrow | Wholesaler | Shop |", "| --- | ---: | ---: | ---: | ---: |"]
     for name, snapshot in data["snapshots"].items():
         b = snapshot["balances"]
-        lines.append(f"| {name} | {b['escrow']:,} | {b['wholesaler']:,} | {b['shop']:,} |")
+        lines.append(f"| {name} | {b['agency']:,} | {b['escrow']:,} | {b['wholesaler']:,} | {b['shop']:,} |")
     lines += ["", "Batch and balance reads and negative checks were simulations; no transaction submitted for these."]
     if data.get("inconclusive_override"):
         lines += ["", "Settlement proceeded with the explicit `--allow-inconclusive` override."]
@@ -642,12 +684,23 @@ def save_report(folder, handoff, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--resume", metavar="RUN_ID")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--resume", metavar="RUN_ID")
+    mode.add_argument("--check-accounts", action="store_true",
+                      help="Check Testnet accounts and trustlines without starting a run")
+    parser.add_argument("--amount", type=int, choices=(100, 10),
+                        help="USDC amount (default 100 for a new run)")
     parser.add_argument("--allow-inconclusive", action="store_true",
                         help="Allow settlement after inconclusive tool checks; never bypass failed safety checks")
     args = parser.parse_args()
     handoff = PROJECT.parent / "HANDOFF.md"
     require(handoff.is_file(), "Missing HANDOFF.md")
+    if args.check_accounts or not args.resume:
+        chain = Testnet(RUN_ROOT)
+        chain.preflight()
+        check_usdc_accounts(chain.read_identities(), args.amount or 100, funding=True)
+        if args.check_accounts:
+            return
     if args.resume:
         require(re.fullmatch(r"[0-9a-f]{32}", args.resume), "Invalid run ID")
         folder = RUN_ROOT / args.resume
@@ -659,7 +712,7 @@ def main():
     with (folder / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         execute(folder, Testnet(folder), handoff, resume=bool(args.resume),
-                allow_inconclusive=args.allow_inconclusive)
+                allow_inconclusive=args.allow_inconclusive, amount_usdc=args.amount)
 
 
 if __name__ == "__main__":

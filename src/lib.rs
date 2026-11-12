@@ -1,22 +1,16 @@
 #![no_std]
 
-use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, token, Address, Bytes, Env,
-};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env};
 
-const STROOPS_PER_XLM: i128 = 10_000_000;
+const UNITS_PER_USDC: i128 = 10_000_000;
 const REQUIRED_QUANTITY: u32 = 3;
-const WHOLESALER_AMOUNT: i128 = 70 * STROOPS_PER_XLM;
-const SHOP_AMOUNT: i128 = 30 * STROOPS_PER_XLM;
-const TOTAL_AMOUNT: i128 = WHOLESALER_AMOUNT + SHOP_AMOUNT;
-
-// The XDR representation of Stellar's native Asset has only the 32-bit
-// ASSET_TYPE_NATIVE discriminant (0). The SDK derives its SAC address per network.
-const NATIVE_ASSET_XDR: [u8; 4] = [0; 4];
+const STANDARD_SPLIT: (i128, i128) = (70 * UNITS_PER_USDC, 30 * UNITS_PER_USDC);
+const SMALL_TEST_SPLIT: (i128, i128) = (7 * UNITS_PER_USDC, 3 * UNITS_PER_USDC);
 
 #[contracttype]
 enum StorageKey {
     Agency,
+    Asset,
     Batch,
 }
 
@@ -53,23 +47,19 @@ pub enum ReliefError {
     BatchAlreadySettled = 5,
 }
 
-fn native_xlm_contract(env: &Env) -> Address {
-    env.deployer()
-        .with_stellar_asset(Bytes::from_array(env, &NATIVE_ASSET_XDR))
-        .deployed_address()
-}
-
 #[contract]
 pub struct StellarRelief;
 
 #[contractimpl]
 impl StellarRelief {
-    pub fn __constructor(env: Env, agency: Address) {
-        env.storage().instance().set(&StorageKey::Agency, &agency);
+    pub fn __constructor(env: Env, agency: Address, asset: Address) {
+        let storage = env.storage().instance();
+        storage.set(&StorageKey::Agency, &agency);
+        storage.set(&StorageKey::Asset, &asset);
     }
 
-    /// Transfers 100 XLM from the configured agency and records the only MVP batch.
-    /// The payout arguments are in stroops and must match the fixed 70/30 split.
+    /// Locks 100 USDC (or 10 for a smaller demo) and records the only MVP batch.
+    /// Both payout amounts use seven-decimal base units.
     pub fn fund_batch(
         env: Env,
         batch_id: u32,
@@ -90,15 +80,17 @@ impl StellarRelief {
         if quantity != REQUIRED_QUANTITY {
             return Err(ReliefError::InvalidQuantity);
         }
-        if wholesaler_amount != WHOLESALER_AMOUNT || shop_amount != SHOP_AMOUNT {
+        let split = (wholesaler_amount, shop_amount);
+        if split != STANDARD_SPLIT && split != SMALL_TEST_SPLIT {
             return Err(ReliefError::InvalidAmounts);
         }
 
-        let xlm = native_xlm_contract(&env);
-        token::TokenClient::new(&env, &xlm).transfer(
+        let asset: Address = storage.get(&StorageKey::Asset).unwrap();
+        let total_amount = wholesaler_amount + shop_amount;
+        token::TokenClient::new(&env, &asset).transfer(
             &agency,
             &env.current_contract_address(),
-            &TOTAL_AMOUNT,
+            &total_amount,
         );
 
         let batch = Batch {
@@ -110,7 +102,7 @@ impl StellarRelief {
             verifier,
             wholesaler_amount,
             shop_amount,
-            total_amount: TOTAL_AMOUNT,
+            total_amount,
             status: BatchStatus::Funded,
         };
         storage.set(&StorageKey::Batch, &batch);
@@ -138,8 +130,8 @@ impl StellarRelief {
             return Err(ReliefError::InvalidQuantity);
         }
 
-        let xlm = native_xlm_contract(&env);
-        let token = token::TokenClient::new(&env, &xlm);
+        let asset: Address = env.storage().instance().get(&StorageKey::Asset).unwrap();
+        let token = token::TokenClient::new(&env, &asset);
         let escrow = env.current_contract_address();
         // The host authorizes this contract's direct calls spending its own
         // balance. A failed transfer aborts the whole invocation.
