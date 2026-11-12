@@ -25,7 +25,6 @@ node --disable-warning=ExperimentalWarning --experimental-strip-types web/script
 
 ## Sprint verification
 
-- TypeScript, Vite production build, eight state and RPC tests, and the historical evidence comparison passed.
-- The production service worker passed an isolated Cache Storage simulation. It served the precached HTML and assets after simulated network loss and bypassed RPC requests. The compiled React app also passed simulated offline entry, storage reload, duplicate rejection and reconnection in a DOM harness.
-- The Playwright test exercises a real browser reload after network loss. It could not start in the managed environment because binding to loopback returned `EPERM`.
-- The live Testnet check was attempted. The environment could not resolve the Testnet RPC host. The CLI reported verification unavailable, while the RPC fixture tests passed for matching, mismatch, expired state and failure cases.
+- TypeScript, Vite production build, eight state and RPC tests, the historical evidence comparison, and the service worker cache simulation passed.
+- On November 12, 2026, the real Chromium suite passed on a Mac. It confirmed service worker responses for the page and assets during offline reloads, persistence of the redeemed voucher, duplicate rejection, navigation through all four role views, and a fresh HTTP response after reconnecting.
+- The same Mac validation ran the live read-only Testnet check. It returned ledger `5689239`, status `Settled`, and an empty mismatch list. This result describes that ledger observation. Later reads may be unavailable if Testnet resets or the contract state expires.

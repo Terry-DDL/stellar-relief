@@ -32,7 +32,7 @@ Stellar gives agencies and suppliers a shared transaction record they can inspec
 - USDC escrow with agency funding authorization, verifier-only settlement, quantity validation, and duplicate-settlement protection.
 - Agency, Supplier, Local Shop, and Verification views.
 - Separate supplier and shop actions with a batch-scoped audit timeline and redemption count.
-- Three local paper vouchers with offline entry, reload persistence, duplicate rejection, and simulated reconciliation.
+- A production service worker caches the app for offline reopening after an initial online visit. The three paper vouchers support offline entry, reload persistence, duplicate rejection, and simulated reconciliation.
 - Read-only Testnet lookup that compares live contract state with the recorded run.
 - Historical Replay of the verified batch, with field operations labeled as simulations.
 
@@ -52,7 +52,7 @@ The Python E2E runner manages Testnet transactions and checkpoints separately fr
 
 ## Demo Screenshots
 
-Screenshots are pending visual browser verification. Run the demo locally to explore the four role views.
+Run the demo locally to explore the four role views.
 
 ## Stellar Testnet Deployment
 
@@ -94,7 +94,20 @@ npm --prefix web run dev -- --host 127.0.0.1
 
 Open the local URL printed by Vite. Start Historical Replay from **Agency**, record three kits from **Supplier**, and confirm the same quantity from **Local Shop**. Try vouchers `BR-1-01`, `BR-1-02`, and `BR-1-03`. The web demo requires no wallet or environment variables. The production build was verified on Apple silicon.
 
-For offline reopening, use the production build on HTTPS or localhost. See the [evidence and offline technical notes](docs/evidence-offline.md) for the walkthrough and verification limits.
+To try offline reopening, use the production build on HTTPS or localhost:
+
+```sh
+npm --prefix web run build
+npm --prefix web run preview -- --host 127.0.0.1
+```
+
+Open the app online and wait until **Local Shop** reports that it is cached. Then disconnect and reload. To compare the deployed batch with the recorded evidence, reconnect and choose **Verify on Stellar Testnet** in **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
+
+```sh
+node --disable-warning=ExperimentalWarning --experimental-strip-types web/scripts/verify-testnet.mjs
+```
+
+See the [evidence and offline technical notes](docs/evidence-offline.md) for the full walkthrough.
 
 ## Smart Contract Functions
 
@@ -121,10 +134,14 @@ npm --prefix web run test:browser
 
 The browser test requires Google Chrome and a loopback listener. The standard frontend evidence test uses the checked-in extract. If the original local report is present, compare it with the same JSON using `node web/scripts/evidence.mjs --original`. These commands run tests or build artifacts. The Python E2E runner is a separate tool that can submit Testnet transactions.
 
+On November 12, 2026, the production build and real Chromium suite passed on a Mac. The suite verified that the service worker served the document, JavaScript, and CSS during offline reloads. It also covered voucher persistence, duplicate rejection, all four role views while offline, and a fresh HTTP response after reconnecting. A separate read-only Stellar RPC check at ledger `5689239` reported `Settled` with no mismatches.
+
 ## Security & Limitations
 
 - This is a Testnet prototype with one batch per contract instance and a fixed quantity of three. It has no production audit.
 - Replay reads historical evidence. Supplier delivery and shop receipt are unsigned demo records. Vouchers persist and reject duplicate codes within the same browser. Reconciliation is simulated. The contract verifies the signer and declared quantity. Physical delivery and voucher eligibility remain outside the contract.
+- Offline reopening requires a successful initial online load of the production build. Clearing browser site data removes the cache and local records.
+- The live RPC check requires network access. It compares ledger fields and does not sign or submit a transaction. Testnet resets or expired contract state can make live verification unavailable.
 - The demo does not support global fiat on-ramps, real-world delivery verification, cross-device sync, or local fiat off-ramps.
 - Keep signing identities, raw checkpoints, local run evidence, and environment files outside the public repository.
 
