@@ -105,7 +105,7 @@ try {
   const campaignFlow = page.getByRole('region', { name: 'From funding to distribution' })
   assert.equal(await campaignFlow.getByRole('listitem').count(), 5)
   for (const [stage, label] of [
-    ['Funding sources', 'Future integration'],
+    ['Funding sources', 'Local donor demo'],
     ['NGO procurement', 'Demo scenario'],
     ['Stellar escrow', 'Real Testnet'],
     ['Delivery & settlement', 'Local demo'],
@@ -117,6 +117,11 @@ try {
   assert.equal(await campaignFlow.getByRole('link', { name: 'Funding proof' }).getAttribute('href'), evidence.transactions.fund.url)
   assert.equal(await campaignFlow.getByRole('link', { name: 'Atomic settlement proof' }).getAttribute('href'), evidence.transactions.settle.url)
   await button('Start Guided Demo').click()
+  await heading('People around the world contribute')
+  await page.getByLabel('Target donation in USDC').fill('12.50')
+  await button('Simulate USDC contribution').click()
+  await visible('12.50 USDC')
+  await button('Next step').click()
   await heading('NGO secures funding')
   await button('Review supplier proof').click()
   await heading('Supplier verifies before dispatch')
@@ -268,8 +273,10 @@ try {
   await visible('Batch 001 · Settled (recorded)')
 
   await nav.getByRole('link', { name: 'Guided Demo' }).click()
-  await heading('NGO secures funding')
+  await heading('People around the world contribute')
   assert.ok(await button('Previous step').isDisabled())
+  await button('Next step').click()
+  await heading('NGO secures funding')
   await button('Next step').click()
   await heading('Supplier verifies before dispatch')
   await button('Verify on Stellar Testnet').click()
@@ -308,8 +315,8 @@ try {
   const settlement = page.getByRole('link', { name: 'View settlement transaction' })
   assert.equal(await settlement.getAttribute('href'), evidence.transactions.settle.url)
   await button('Restart walkthrough').click()
-  await heading('NGO secures funding')
-  console.log('PASS default Guided Demo, four steps, live check, receipt and voucher safeguards, settlement link')
+  await heading('People around the world contribute')
+  console.log('PASS default Guided Demo, five steps, donor simulation, live check, receipt and voucher safeguards, settlement link')
 
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 })

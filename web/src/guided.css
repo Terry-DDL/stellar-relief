@@ -114,7 +114,7 @@
 .campaign-path .evidence-link { font-size: .75rem; line-height: 1.35; }
 .flow-evidence { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
 
-.guided-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.guided-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .guided-steps button {
   min-width: 0;
   min-height: 52px;
@@ -144,6 +144,25 @@
   font-size: .75rem;
 }
 .guided-steps button[aria-current] .step-number { color: #fff; background: #146c60; }
+
+.donor-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.donor-route { display: flex; gap: 7px; margin: 14px 0; }
+.donor-route button { flex: 1; min-height: 40px; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #37505d; font-size: .8rem; font-weight: 700; }
+.donor-route button[aria-pressed="true"] { border-color: #81b9aa; background: #eaf5f1; color: #125c52; }
+.donor-form { display: grid; gap: 11px; }
+.donor-form label { display: grid; gap: 5px; color: #354a56; font-size: .8rem; font-weight: 700; }
+.donor-form input, .donor-form select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid #aebfc9; border-radius: 8px; background: #fff; color: var(--navy); }
+.donor-form .button { justify-self: start; }
+.donor-quote { color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.donor-journey { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.donor-journey li { display: flex; gap: 10px; }
+.donor-journey li > span { display: grid; place-items: center; flex: 0 0 26px; height: 26px; border-radius: 8px; background: #eaf5f1; color: #125c52; font-size: .8rem; font-weight: 800; }
+.donor-journey strong { font-size: .84rem; }
+.donor-journey p, .donor-total p { margin-top: 3px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.donor-total { margin-top: 15px; padding: 13px; border: 1px solid #c7e1d9; border-radius: 10px; background: #eaf5f1; }
+.donor-total > span { display: block; color: #31574e; font-size: .78rem; font-weight: 700; }
+.donor-total strong { display: block; margin-top: 4px; font-size: 1.65rem; letter-spacing: -.04em; }
+.donor-total strong small { font-size: .8rem; letter-spacing: 0; }
 
 .guided-stage { display: grid; gap: 12px; min-width: 0; }
 .stage-header { display: flex; align-items: end; justify-content: space-between; gap: 12px; padding: 5px 0; }
@@ -210,12 +229,14 @@
   .guided-hero { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .guided-intro h1 { max-width: none; }
   .assurance-layout { grid-template-columns: minmax(0, 1fr); }
+  .donor-layout { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
   .brand { margin-bottom: 8px; }
   .sidebar .overview-link { grid-column: 1 / -1; justify-content: flex-start; margin-bottom: 3px; padding: 6px 10px; }
   .guided-hero { border-radius: 17px; }
   .guided-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .guided-steps button:last-child { grid-column: 1 / -1; }
   .guided-steps button { min-height: 42px; font-size: .75rem; }
   .stage-header { align-items: flex-start; flex-wrap: wrap; gap: 8px; }
 }

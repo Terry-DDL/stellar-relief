@@ -34,6 +34,7 @@ const paths = {
   lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   box: 'm12 3 9 4.5v9L12 21l-9-4.5v-9L12 3Zm-9 4.5 9 4.5 9-4.5M12 12v9',
   wallet: 'M4 6h15v13H4zM4 6l12-3v3m3 4h-5v5h5',
+  globe: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-10 10h20M12 2c3 3 4 6 4 10s-1 7-4 10c-3-3-4-6-4-10s1-7 4-10Z',
   history: 'M3 11a9 9 0 1 1 2 6M3 5v6h6m3-4v5l4 2',
 } satisfies Record<string, string>
 
@@ -311,11 +312,63 @@ function Shop(props: FieldProps) {
 }
 
 const guidedSteps = [
+  { title: 'People around the world contribute', short: 'Global donations', icon: 'globe' },
   { title: 'NGO secures funding', short: 'Secure funding', icon: 'lock' },
   { title: 'Supplier verifies before dispatch', short: 'Verify before dispatch', icon: 'verifier' },
   { title: 'Goods delivered & vouchers redeemed', short: 'Deliver & redeem', icon: 'box' },
   { title: 'Settlement verified', short: 'Verify settlement', icon: 'check' },
 ] as const
+
+type SampleDonation = { amount: number; currency: string; route: 'fiat' | 'wallet' }
+const donationStorageKey = 'stellar-relief:sample-donations:v1'
+
+function DonorFunding() {
+  const amountId = useId()
+  const currencyId = useId()
+  const [route, setRoute] = useState<'fiat' | 'wallet'>('fiat')
+  const [currency, setCurrency] = useState('CAD')
+  const [amount, setAmount] = useState('10')
+  const [donations, setDonations] = useState<SampleDonation[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(donationStorageKey) ?? '[]')
+      return Array.isArray(saved) ? saved.filter((item) => Number.isFinite(item.amount) && item.amount > 0 && (item.route === 'fiat' || item.route === 'wallet')) : []
+    } catch { return [] }
+  })
+  const total = donations.reduce((sum, donation) => sum + donation.amount, 0)
+
+  function addDonation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const value = Number(amount)
+    if (!Number.isFinite(value) || value < 1 || value > 1000) return
+    const updated = [...donations, { amount: Math.round(value * 100) / 100, currency, route }]
+    setDonations(updated)
+    localStorage.setItem(donationStorageKey, JSON.stringify(updated))
+  }
+
+  return <div className="donor-layout">
+    <Card title="Contribute to the relief pool" extra={<Tag tone="amber">Browser-local simulation</Tag>}>
+      <p className="card-description">A donor can use USDC they already hold or obtain it through an available, licensed payment provider. This demo does not exchange money or send a transaction.</p>
+      <div className="donor-route" role="group" aria-label="Donation route">
+        <button type="button" aria-pressed={route === 'fiat'} onClick={() => setRoute('fiat')}>Pay in local currency</button>
+        <button type="button" aria-pressed={route === 'wallet'} onClick={() => setRoute('wallet')}>Use existing USDC</button>
+      </div>
+      <form className="donor-form" onSubmit={addDonation}>
+        {route === 'fiat' && <label htmlFor={currencyId}>Currency paid to the provider<select id={currencyId} value={currency} onChange={(event) => setCurrency(event.target.value)}><option>CAD</option><option>USD</option><option>EUR</option><option>PHP</option><option>Other</option></select></label>}
+        <label htmlFor={amountId}>Target donation in USDC<input id={amountId} type="number" min="1" max="1000" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+        <p className="donor-quote">{route === 'fiat' ? 'The provider would show the actual local-currency price, fees and eligibility before payment. No exchange rate is assumed here.' : 'A live version would ask the donor to connect a Stellar wallet and approve a USDC transfer.'}</p>
+        <button className="button primary" type="submit">Simulate USDC contribution <Icon name="arrow" size={15} /></button>
+      </form>
+    </Card>
+    <Card title="How money reaches procurement" extra={<Tag tone="gray">Proposed donor flow</Tag>}>
+      <ol className="donor-journey">
+        <li><span>1</span><div><strong>Donor gets USDC</strong><p>An eligible provider converts the donor's payment, or the donor uses USDC already in a Stellar wallet.</p></div></li>
+        <li><span>2</span><div><strong>USDC reaches a campaign wallet</strong><p>Incoming transfers and a public campaign balance would be visible on Stellar.</p></div></li>
+        <li><span>3</span><div><strong>NGO commits a procurement batch</strong><p>The NGO moves an approved amount into escrow. The supplier can verify the locked funds before dispatch.</p></div></li>
+      </ol>
+      <div className="donor-total"><span>Sample donor pool on this browser</span><strong>{total.toFixed(2)} <small>USDC</small></strong><p>{donations.length} simulated contribution{donations.length === 1 ? '' : 's'}. These are separate from the recorded Testnet escrow deposit shown in the next step.</p></div>
+    </Card>
+  </div>
+}
 
 function PaymentFlow({ settled = false }: { settled?: boolean }) {
   const transaction = transactions[settled ? 'settle' : 'fund']
@@ -350,8 +403,8 @@ function CampaignFlow() {
     <ol className="campaign-path">
       <li>
         <h3>Funding sources</h3>
-        <Tag tone="gray">Future integration</Tag>
-        <p>Global donations, institutional grants, and NGO funds.</p>
+        <Tag tone="amber">Local donor demo</Tag>
+        <p>Donors obtain USDC and contribute to a campaign wallet; on-ramp availability depends on location and provider.</p>
       </li>
       <li>
         <h3>NGO procurement</h3>
@@ -396,10 +449,10 @@ function GuidedDemo(props: FieldProps) {
       <div className="guided-intro">
         <p className="eyebrow"><span>Coastal Flood Relief</span> · <span>Fictional relief scenario</span></p>
         <h1 id="guided-heading">Emergency supplies shouldn't wait for payment trust.</h1>
-        <p>Stellar Relief lets NGOs secure procurement funds on-chain, so local suppliers can verify payment commitments before dispatch.</p>
+        <p>Donors worldwide can contribute USDC where supported. NGOs then secure procurement funds on-chain, so local suppliers can verify payment commitments before dispatch.</p>
         <div className="hero-actions">
           <button type="button" className="button hero-button" onClick={() => goToStep(0)}>Start Guided Demo <Icon name="arrow" size={16} /></button>
-          <button type="button" className="button hero-shortcut" onClick={() => goToStep(1)}>Review supplier proof</button>
+          <button type="button" className="button hero-shortcut" onClick={() => goToStep(2)}>Review supplier proof</button>
         </div>
       </div>
       <div className="hero-order">
@@ -434,9 +487,10 @@ function GuidedDemo(props: FieldProps) {
             : <button type="button" className="button primary" onClick={() => goToStep(0)}>Restart walkthrough</button>}
         </div>
       </header>
-      {step === 0 && <PaymentFlow />}
-      {step === 1 && <SupplierAssurance online={props.online} />}
-      {step === 2 && <>
+      {step === 0 && <DonorFunding />}
+      {step === 1 && <PaymentFlow />}
+      {step === 2 && <SupplierAssurance online={props.online} />}
+      {step === 3 && <>
         <div className="simulation-note">
           <div><Tag tone="amber">Browser-local simulation</Tag>
             <p>Record delivery, confirm receipt, and redeem a voucher on this browser. The forms below also work individually.</p></div>
@@ -455,7 +509,7 @@ function GuidedDemo(props: FieldProps) {
           setSampleNotice(null)
         }} />
       </>}
-      {step === 3 && <PaymentFlow settled />}
+      {step === 4 && <PaymentFlow settled />}
     </section>
   </>
 }
