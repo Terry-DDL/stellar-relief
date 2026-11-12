@@ -97,6 +97,42 @@ export function redeem(state: Demo, batchId: number, vouchers: string[], input: 
   }
 }
 
+export function runSampleDelivery(state: Demo, batchId: number, quantity: number, vouchers: string[], at: string): Result {
+  const [voucher] = vouchers
+  if (!voucher) return fail(state, 'No sample voucher is available for this batch.')
+
+  const delivery = state.delivery
+  if (delivery && (delivery.batchId !== batchId || delivery.quantity !== quantity
+    || (delivery.receipt && delivery.receipt.quantity !== quantity))) {
+    return fail(state, 'The existing delivery differs from the sample. Use the manual controls or Reset demo.')
+  }
+
+  let updated = state
+  if (!delivery) {
+    const result = recordDelivery(updated, batchId, quantity, quantity, at)
+    if (!result.ok) return fail(state, result.message)
+    updated = result.state
+  }
+  if (!updated.delivery?.receipt) {
+    const result = confirmReceipt(updated, batchId, quantity, at)
+    if (!result.ok) return fail(state, result.message)
+    updated = result.state
+  }
+  if (updated.redemptions.some((record) => record.code === voucher)) {
+    return {
+      ok: true,
+      state: updated,
+      message: updated === state
+        ? 'Sample delivery is already complete on this browser.'
+        : `Sample receipt confirmed. ${voucher} was already redeemed on this browser.`,
+    }
+  }
+
+  const result = redeem(updated, batchId, vouchers, voucher, at)
+  if (!result.ok) return fail(state, result.message)
+  return { ...result, message: `Sample complete. ${quantity} kits delivered and received. ${voucher} redeemed on this browser.` }
+}
+
 export function reconcile(state: Demo, online: boolean): Result {
   if (!online) return fail(state, 'Reconnect before running simulated reconciliation.')
   return {

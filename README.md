@@ -92,13 +92,13 @@ npm --prefix web ci
 npm --prefix web run dev -- --host 127.0.0.1
 ```
 
-Open the local URL printed by Vite. **Guided Demo** opens by default. The Agency, Supplier, Local Shop, and Verification views remain available in the navigation. Historical Replay is under **Agency**. The web demo requires no wallet or environment variables.
+Open the local URL printed by Vite. **Guided Demo** opens by default with Coastal Flood Relief, a fictional campaign tied to Procurement Order #001 and the recorded Stellar Testnet batch. The funding-to-distribution view labels future funding integrations, the demo order, real Testnet transactions, and browser-local field records. The Agency, Supplier, Local Shop, and Verification views remain available in the navigation. Historical Replay is under **Agency**. The web demo requires no wallet or environment variables.
 
 ### 60-second guided demo
 
-1. **0–10 s · Fund the order.** Show the recorded 10 USDC deposit and the 7 USDC supplier and 3 USDC shop allocations.
+1. **0–10 s · Start the Guided Demo.** Introduce the payment trust problem and show Order #001 for three kits. The recorded 10 USDC deposit is split into 7 USDC for the supplier and 3 USDC for the shop.
 2. **10–30 s · Check before dispatch.** Open **Review supplier proof**. Show the supplier address, verifier, and funding transaction. Select **Verify on Stellar Testnet** to check the live contract and batch fields. The recorded order has already settled, and the RPC check does not read the current escrow token balance.
-3. **30–50 s · Demonstrate field operations.** Record three kits, try a shop receipt of two, then confirm three. Select **Use sample voucher**, redeem it, and try it again. These actions use unsigned records on this browser.
+3. **30–50 s · Demonstrate field operations.** Click **Run sample delivery demo** to record three kits, confirm receipt, and redeem one voucher on this browser. Click it again to show that the existing redemption is retained. The manual controls remain available for demonstrating a quantity mismatch or duplicate redemption.
 4. **50–60 s · Show settlement.** Open the confirmed transaction that paid both recipients together. The browser demo actions have no effect on that transaction.
 
 Use **Reset demo** in the delivery stage or Local Shop to clear this browser's field records before presenting again.

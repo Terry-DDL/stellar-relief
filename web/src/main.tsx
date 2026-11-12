@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import evidence from './evidence.json'
-import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, reconcile, recordDelivery, redeem, resetDemo, scopeVouchers, steps, storeDemo, story } from './demo'
+import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, reconcile, recordDelivery, redeem, resetDemo, runSampleDelivery, scopeVouchers, steps, storeDemo, story } from './demo'
 import type { Demo, Role } from './demo'
 import { useConnectivity } from './connectivity'
 import { verifyTestnet } from './testnet'
@@ -13,7 +13,10 @@ const { asset, batch, roles, transactions, snapshots } = evidence
 const { key, codes } = scopeVouchers(evidence.contractId, batch.id, roles.shop, batch.quantity)
 const money = (units: number) => new Intl.NumberFormat('en', { maximumFractionDigits: 7 }).format(units / asset.unitsPerToken)
 const shorten = (id: string) => `${id.slice(0, 8)}…${id.slice(-6)}`
-const batchLabel = `Batch ${String(batch.id).padStart(3, '0')}`
+const batchNumber = String(batch.id).padStart(3, '0')
+const batchLabel = `Batch ${batchNumber}`
+const orderLabel = `Procurement Order #${batchNumber}`
+const payouts = [{ role: 'wholesaler', title: 'Supplier payment' }, { role: 'shop', title: 'Shop distribution fee' }] as const
 
 const paths = {
   brand: 'M12 2v20M2 12h20M5 5l14 14M19 5 5 19',
@@ -63,12 +66,15 @@ function Transactions() {
   </div>
 }
 
+function AllocationBar() {
+  return <div className="split-bar" role="img" aria-label={payouts.map(({ role, title }) => `${title} ${money(batch.amounts[role])} ${asset.code}`).join(', ')}>
+    {payouts.map(({ role }) => <span key={role} style={{ flexGrow: batch.amounts[role] }} />)}
+  </div>
+}
+
 function Allocation() {
-  const payouts = [{ role: 'wholesaler', title: 'Supplier payment' }, { role: 'shop', title: 'Shop distribution fee' }] as const
   return <>
-    <div className="split-bar" aria-label={payouts.map(({ role, title }) => `${title} ${money(batch.amounts[role])} ${asset.code}`).join(', ')}>
-      {payouts.map(({ role }) => <span key={role} style={{ flexGrow: batch.amounts[role] }} />)}
-    </div>
+    <AllocationBar />
     {payouts.map(({ role, title }) => <div className="allocation" key={role}>
       <span className={`legend ${role}`} /><span>{title}</span>
       <strong>{money(batch.amounts[role])} <small>{asset.code}</small></strong>
@@ -155,7 +161,9 @@ function DeliveryForm({ role, demo, apply, suggested = false }: { role: 'supplie
   return <Card title={supplier ? 'Supply delivery' : 'Shop receipt'} extra={<Tag tone="amber">Local demo</Tag>}>
     <p className="card-description">{batchLabel} · {story.roles.shop.name} · Expected {batch.quantity} kits</p>
     <p className="card-description">{delivery
-      ? delivery.receipt ? `Shop confirmed ${delivery.receipt.quantity} kits.` : `Supplier recorded ${delivery.quantity} kits. Awaiting shop confirmation.`
+      ? delivery.receipt
+        ? supplier ? `Supplier recorded ${delivery.quantity} kits. Shop receipt confirmed.` : `Shop confirmed ${delivery.receipt.quantity} kits.`
+        : `Supplier recorded ${delivery.quantity} kits. Awaiting shop confirmation.`
       : 'Waiting for the supplier delivery record.'}</p>
     {showForm && <form className="voucher-form" onSubmit={submit}>
       <label htmlFor={inputId}>{supplier ? 'Quantity delivered' : 'Quantity received'}</label>
@@ -218,8 +226,13 @@ function SupplierAssurance({ online }: { online: boolean }) {
       <Link href={transactions.fund.url}>View funding transaction</Link>
     </Card>
     <div className="assurance-side">
-      <Card title="Before deciding to ship" extra={<Tag tone="gray">Recorded {batch.status}</Tag>}>
-        <p className="card-description">The funding receipt lets a supplier check the committed amount. The contract records who gets paid and who can approve settlement.</p>
+      <Card title="What suppliers can verify" extra={<Tag tone="gray">Recorded {batch.status}</Tag>}>
+        <ul className="assurance-checks">
+          <li>The NGO previously committed funds to escrow.</li>
+          <li>The order specifies the supplier payout and receiving address.</li>
+          <li>Settlement requires approval from the designated verifier.</li>
+        </ul>
+        <p className="assurance-benefit">Verifiable payment commitments reduce uncertainty about whether the buyer has secured funds before dispatch.</p>
         <p className="recorded-note">This batch settled and the supplier received {money(paid)} {asset.code}. The receipt applies to this order only.</p>
       </Card>
       <LiveVerification online={online} />
@@ -331,8 +344,43 @@ function PaymentFlow({ settled = false }: { settled?: boolean }) {
   </Card>
 }
 
+function CampaignFlow() {
+  return <section className="campaign-flow" aria-labelledby="campaign-flow-title">
+    <h2 id="campaign-flow-title">From funding to distribution</h2>
+    <ol className="campaign-path">
+      <li>
+        <h3>Funding sources</h3>
+        <Tag tone="gray">Future integration</Tag>
+        <p>Global donations, institutional grants, and NGO funds.</p>
+      </li>
+      <li>
+        <h3>NGO procurement</h3>
+        <Tag tone="amber">Demo scenario</Tag>
+        <p>Order #{batchNumber} for {batch.quantity} food and water kits for flood-affected families.</p>
+      </li>
+      <li>
+        <h3>Stellar escrow</h3>
+        <Tag>Real Testnet</Tag>
+        <p>{money(batch.amounts.total)} {asset.code} deposited before settlement.</p>
+        <Link href={transactions.fund.url}>Funding proof</Link>
+      </li>
+      <li>
+        <h3>Delivery & settlement</h3>
+        <div className="flow-evidence"><Tag tone="amber">Local demo</Tag><p>Delivery confirmation</p></div>
+        <div className="flow-evidence"><Tag>Real Testnet</Tag><Link href={transactions.settle.url}>Atomic settlement proof</Link></div>
+      </li>
+      <li>
+        <h3>Community distribution</h3>
+        <Tag tone="amber">Local demo</Tag>
+        <p>Offline voucher redemption on this device.</p>
+      </li>
+    </ol>
+  </section>
+}
+
 function GuidedDemo(props: FieldProps) {
   const [step, setStep] = useState(0)
+  const [sampleNotice, setSampleNotice] = useState<{ ok: boolean; message: string } | null>(null)
   const stageTitle = useRef<HTMLHeadingElement>(null)
 
   function goToStep(next: number) {
@@ -346,22 +394,29 @@ function GuidedDemo(props: FieldProps) {
   return <>
     <section className="guided-hero" aria-labelledby="guided-heading">
       <div className="guided-intro">
-        <p className="eyebrow">Emergency procurement · Guided demo</p>
-        <h1 id="guided-heading">Ship with confidence.</h1>
-        <p>An NGO needs emergency supplies. Its supplier can verify the funded order and payment terms before shipping to a new buyer.</p>
-        <button className="button hero-button" onClick={() => goToStep(1)}>Review supplier proof <Icon name="arrow" size={16} /></button>
+        <p className="eyebrow"><span>Coastal Flood Relief</span> · <span>Fictional relief scenario</span></p>
+        <h1 id="guided-heading">Emergency supplies shouldn't wait for payment trust.</h1>
+        <p>Stellar Relief lets NGOs secure procurement funds on-chain, so local suppliers can verify payment commitments before dispatch.</p>
+        <div className="hero-actions">
+          <button type="button" className="button hero-button" onClick={() => goToStep(0)}>Start Guided Demo <Icon name="arrow" size={16} /></button>
+          <button type="button" className="button hero-shortcut" onClick={() => goToStep(1)}>Review supplier proof</button>
+        </div>
       </div>
       <div className="hero-order">
-        <div className="hero-order-top"><span><Icon name="lock" size={17} /> Recorded Testnet order</span><Tag>{batch.status}</Tag></div>
-        <div className="hero-order-label">{batchLabel} · {batch.quantity} relief kits</div>
+        <div className="hero-order-top"><span><Icon name="lock" size={17} /> Stellar escrow · Testnet</span><Tag>{batch.status}</Tag></div>
+        <h2>{orderLabel}</h2>
+        <p className="hero-order-label">{batch.quantity} food and water kits · Demo order</p>
         <strong className="hero-order-amount">{money(batch.amounts.total)} <small>{asset.code}</small></strong>
-        <span className="hero-order-caption">Originally deposited in escrow</span>
+        <span className="hero-order-caption">Recorded escrow deposit</span>
+        <AllocationBar />
         <div className="hero-order-split">
           <div><strong>{money(batch.amounts.wholesaler)} {asset.code}</strong><span>Supplier payout</span></div>
           <div><strong>{money(batch.amounts.shop)} {asset.code}</strong><span>Local shop payout</span></div>
         </div>
       </div>
     </section>
+
+    <CampaignFlow />
 
     <nav className="guided-steps" aria-label="Demo stages">
       {guidedSteps.map((item, index) => <button key={item.title} type="button" aria-current={step === index ? 'step' : undefined} onClick={() => goToStep(index)}>
@@ -382,14 +437,23 @@ function GuidedDemo(props: FieldProps) {
       {step === 0 && <PaymentFlow />}
       {step === 1 && <SupplierAssurance online={props.online} />}
       {step === 2 && <>
-        <div className="simulation-note"><Tag tone="amber">Browser-local simulation</Tag>
-          <p>Record {batch.quantity} kits, try a receipt for {batch.quantity - 1}, then correct it. Redeem the sample voucher and try it again.</p>
+        <div className="simulation-note">
+          <div><Tag tone="amber">Browser-local simulation</Tag>
+            <p>Record delivery, confirm receipt, and redeem a voucher on this browser. The forms below also work individually.</p></div>
+          <button type="button" className="button primary" onClick={async () => {
+            const { ok, message } = await props.apply((state) => runSampleDelivery(state, batch.id, batch.quantity, codes, new Date().toISOString()))
+            setSampleNotice({ ok, message })
+          }}>Run sample delivery demo</button>
+          {sampleNotice && <p className={`sample-result ${sampleNotice.ok ? '' : 'error'}`} role="status">{sampleNotice.message}</p>}
         </div>
         <div className="grid delivery-pair">
           <DeliveryForm role="supplier" demo={props.demo} apply={props.apply} suggested />
           <DeliveryForm role="shop" demo={props.demo} apply={props.apply} />
         </div>
-        <VoucherWorkspace {...props} guided />
+        <VoucherWorkspace {...props} guided reset={async () => {
+          await props.reset()
+          setSampleNotice(null)
+        }} />
       </>}
       {step === 3 && <PaymentFlow settled />}
     </section>
@@ -469,7 +533,7 @@ function App() {
     const run = () => {
       const current = readDemo(localStorage, key)
       const result = action(current)
-      if (result.ok) storeDemo(localStorage, key, result.state)
+      if (result.ok && result.state !== current) storeDemo(localStorage, key, result.state)
       setDemo(result.state)
       return result
     }

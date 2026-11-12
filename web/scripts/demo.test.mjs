@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, recordDelivery, redeem, reconcile, resetDemo, storeDemo, scopeVouchers } from '../src/demo.ts'
+import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, recordDelivery, redeem, reconcile, resetDemo, runSampleDelivery, storeDemo, scopeVouchers } from '../src/demo.ts'
 
 const batchId = 1
 const { key, codes: vouchers } = scopeVouchers('contract', batchId, 'shop', 3)
@@ -46,6 +46,47 @@ test('a voucher is saved once, foreign codes are rejected and confirmed stock ca
   assert.match(useVoucher(reloaded, vouchers[0]).message, /already redeemed/)
   assert.match(useVoucher(reloaded, vouchers[1]).message, /All confirmed kits/)
   assert.match(useVoucher(reloaded, 'OTHER-BATCH-01').message, /Unknown voucher/)
+})
+
+test('sample delivery saves one voucher and rerunning leaves the saved records intact', () => {
+  const disk = storage()
+  const sample = (state, time) => runSampleDelivery(state, batchId, 3, vouchers, time)
+  const result = sample(empty, at(3))
+  assert.equal(result.ok, true)
+  assert.equal(result.state.delivery.quantity, 3)
+  assert.equal(result.state.delivery.receipt.quantity, 3)
+  assert.deepEqual(result.state.redemptions, [{ code: vouchers[0], at: at(3), synced: false }])
+  storeDemo(disk, key, result.state)
+  const saved = readDemo(disk, key)
+  const repeated = sample(saved, at(4))
+  assert.equal(repeated.ok, true)
+  assert.strictEqual(repeated.state, saved)
+  assert.equal(useVoucher(repeated.state, vouchers[0]).ok, false)
+  resetDemo(disk, key)
+  assert.deepEqual(readDemo(disk, key), empty)
+  assert.equal(sample(readDemo(disk, key), at(5)).state.redemptions.length, 1)
+})
+
+test('sample resumes a matching manual delivery and preserves incompatible records', () => {
+  const partial = delivered()
+  const resumed = runSampleDelivery(partial, batchId, 3, vouchers, at(3))
+  assert.equal(resumed.ok, true)
+  assert.equal(resumed.state.delivery.supplierAt, partial.delivery.supplierAt)
+  assert.equal(resumed.state.delivery.receipt.quantity, 3)
+  assert.equal(resumed.state.redemptions.length, 1)
+
+  const otherVoucher = useVoucher(received(), vouchers[1]).state
+  const withSample = runSampleDelivery(otherVoucher, batchId, 3, vouchers, at(4))
+  assert.equal(withSample.ok, true)
+  assert.deepEqual(withSample.state.redemptions.map(({ code }) => code), [vouchers[1], vouchers[0]])
+
+  const smaller = delivered(2)
+  const incompatible = runSampleDelivery(smaller, batchId, 3, vouchers, at(3))
+  assert.equal(incompatible.ok, false)
+  assert.strictEqual(incompatible.state, smaller)
+  const noVoucher = runSampleDelivery(empty, batchId, 3, [], at(3))
+  assert.equal(noVoucher.ok, false)
+  assert.strictEqual(noVoucher.state, empty)
 })
 
 test('reconnection preserves pending records until explicit simulated reconciliation', () => {

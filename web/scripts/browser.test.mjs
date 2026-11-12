@@ -98,7 +98,33 @@ try {
     }
   }
 
-  await heading('Ship with confidence.')
+  await heading("Emergency supplies shouldn't wait for payment trust.")
+  await visible('Coastal Flood Relief')
+  await visible('Fictional relief scenario')
+  await heading('Procurement Order #001')
+  const campaignFlow = page.getByRole('region', { name: 'From funding to distribution' })
+  assert.equal(await campaignFlow.getByRole('listitem').count(), 5)
+  for (const [stage, label] of [
+    ['Funding sources', 'Future integration'],
+    ['NGO procurement', 'Demo scenario'],
+    ['Stellar escrow', 'Real Testnet'],
+    ['Delivery & settlement', 'Local demo'],
+    ['Community distribution', 'Local demo'],
+  ]) {
+    const node = campaignFlow.getByRole('listitem').filter({ has: page.getByRole('heading', { name: stage, exact: true }) })
+    assert.ok(await node.getByText(label, { exact: true }).isVisible(), `Missing evidence label for ${stage}`)
+  }
+  assert.equal(await campaignFlow.getByRole('link', { name: 'Funding proof' }).getAttribute('href'), evidence.transactions.fund.url)
+  assert.equal(await campaignFlow.getByRole('link', { name: 'Atomic settlement proof' }).getAttribute('href'), evidence.transactions.settle.url)
+  await button('Start Guided Demo').click()
+  await heading('NGO secures funding')
+  await button('Review supplier proof').click()
+  await heading('Supplier verifies before dispatch')
+  await heading('What suppliers can verify')
+  await visible('Verifiable payment commitments reduce uncertainty about whether the buyer has secured funds before dispatch.')
+  await visible('Recorded Settled')
+  await visible('Current USDC escrow balance is outside this check.')
+  await button('Previous step').click()
   await heading('NGO secures funding')
   const funding = page.getByRole('link', { name: 'View funding transaction' })
   assert.equal(await funding.getAttribute('href'), evidence.transactions.fund.url)
@@ -253,6 +279,17 @@ try {
   await button('Next step').click()
   await button('Next step').click()
   await heading('Goods delivered & vouchers redeemed')
+  await button('Run sample delivery demo').click()
+  await visible('Supplier recorded 3 kits. Shop receipt confirmed.')
+  await visible('Shop confirmed 3 kits.')
+  await visible('1 of 3 redeemed')
+  await button('Run sample delivery demo').click()
+  await visible('Sample delivery is already complete on this browser.')
+  await visible('1 of 3 redeemed')
+  await button('Reset demo').click()
+  await visible('0 of 3 redeemed')
+  await visible('Waiting for the supplier delivery record.')
+  assert.equal(await page.getByText('Sample delivery is already complete on this browser.', { exact: true }).count(), 0)
   await page.getByLabel('Quantity delivered').fill('3')
   await button('Record demo delivery').click()
   await page.getByLabel('Quantity received').fill('2')
