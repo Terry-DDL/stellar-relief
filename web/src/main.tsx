@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import evidence from './evidence.json'
@@ -7,6 +7,7 @@ import type { Demo, Role } from './demo'
 import { useConnectivity } from './connectivity'
 import { verifyTestnet } from './testnet'
 import './styles.css'
+import './guided.css'
 
 const { asset, batch, roles, transactions, snapshots } = evidence
 const { key, codes } = scopeVouchers(evidence.contractId, batch.id, roles.shop, batch.quantity)
@@ -16,6 +17,8 @@ const batchLabel = `Batch ${String(batch.id).padStart(3, '0')}`
 
 const paths = {
   brand: 'M12 2v20M2 12h20M5 5l14 14M19 5 5 19',
+  overview: 'M3 5h18v14H3zM3 9h18m-12 0v10',
+  back: 'M20 12H5m6-6-6 6 6 6',
   agency: 'M3 21h18M4 9l8-5 8 5M6 10v7m6-7v7m6-7v7M3 18h18',
   wholesaler: 'M2 5h12v12H2zM14 9h4l4 4v4h-8M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm11 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
   shop: 'M3 9l2-5h14l2 5M3 9v3a2 2 0 0 0 4 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2 2 0 0 0 4 0V9H3Zm2 6v5h14v-5',
@@ -117,7 +120,7 @@ function Agency({ openReplay }: { openReplay: () => void }) {
     </section>
     <div className="grid">
       <Card title="Funding allocation" extra={<Tag>{batch.status}</Tag>}>
-        <p className="card-description">USDC reserved for supplies and local distribution.</p><Allocation />
+        <p className="card-description">Recorded allocation for supplies and local distribution.</p><Allocation />
       </Card>
       <Card title="Testnet timeline" extra={<Link href={evidence.contractUrl}>Contract</Link>}><Transactions /></Card>
     </div>
@@ -132,8 +135,9 @@ function Agency({ openReplay }: { openReplay: () => void }) {
 type DemoAction = (state: Demo) => ReturnType<typeof recordDelivery>
 type ApplyAction = (action: DemoAction) => Promise<ReturnType<DemoAction>>
 
-function DeliveryForm({ role, demo, apply }: { role: 'supplier' | 'shop'; demo: Demo; apply: ApplyAction }) {
-  const [quantity, setQuantity] = useState('')
+function DeliveryForm({ role, demo, apply, suggested = false }: { role: 'supplier' | 'shop'; demo: Demo; apply: ApplyAction; suggested?: boolean }) {
+  const inputId = useId()
+  const [quantity, setQuantity] = useState(suggested ? String(batch.quantity) : '')
   const [notice, setNotice] = useState({ text: '', error: false })
   const supplier = role === 'supplier'
   const delivery = demo.delivery
@@ -154,8 +158,8 @@ function DeliveryForm({ role, demo, apply }: { role: 'supplier' | 'shop'; demo: 
       ? delivery.receipt ? `Shop confirmed ${delivery.receipt.quantity} kits.` : `Supplier recorded ${delivery.quantity} kits. Awaiting shop confirmation.`
       : 'Waiting for the supplier delivery record.'}</p>
     {showForm && <form className="voucher-form" onSubmit={submit}>
-      <label htmlFor="delivery-quantity">{supplier ? 'Quantity delivered' : 'Quantity received'}</label>
-      <div><input id="delivery-quantity" type="number" min="1" max={batch.quantity} step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+      <label htmlFor={inputId}>{supplier ? 'Quantity delivered' : 'Quantity received'}</label>
+      <div><input id={inputId} type="number" min="1" max={batch.quantity} step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
         <button className="button primary">{supplier ? 'Record demo delivery' : 'Confirm demo receipt'}</button></div>
     </form>}
     <p className={`notice ${notice.error ? 'error' : ''}`} role="status">{notice.text}</p>
@@ -182,39 +186,58 @@ function LiveVerification({ online }: { online: boolean }) {
   }
 
   return <Card title="Live Testnet verification" extra={<Tag tone="gray">Read only</Tag>}>
-    <p className="card-description">Compare the current contract and batch with the recorded Testnet run.</p>
-    <button className="button secondary" disabled={checking || !online} onClick={() => { void check() }}>Verify on Stellar Testnet</button>
+    <p className="card-description">Compare current contract and batch fields with the recorded run.</p>
+    <p className="rpc-scope">Current USDC escrow balance is outside this check.</p>
+    <button className="button primary" disabled={checking || !online} onClick={() => { void check() }}>Verify on Stellar Testnet</button>
     <div role="status" className="notice">
       {checking && <p>Reading the current Testnet state…</p>}
       {!online && <p>Offline. Reconnect to verify live data.</p>}
       {error && <p className="error">Verification unavailable. {error}</p>}
-      {online && report && <p><strong>{report.mismatches.length ? 'Live state differs from the recorded evidence.' : 'Live state matches the recorded evidence.'}</strong>
-        {` Batch status: ${report.status}. RPC ledger: ${report.ledger.toLocaleString('en')}.`}
-        {report.mismatches.length > 0 && ` Different fields: ${report.mismatches.join(', ')}.`}</p>}
+      {online && report && <div className="rpc-result">
+        <div><Tag tone={report.mismatches.length ? 'amber' : 'teal'}>Live {report.status}</Tag><small>Ledger {report.ledger.toLocaleString('en')}</small></div>
+        <p><strong>{report.mismatches.length ? 'Live state differs from the recorded evidence.' : 'Live state matches the recorded evidence.'}</strong>
+          {report.mismatches.length > 0 && ` Different fields: ${report.mismatches.join(', ')}.`}</p>
+      </div>}
     </div>
   </Card>
 }
 
-function Supplier({ demo, apply }: { demo: Demo; apply: ApplyAction }) {
-  return <>
-    <div className="grid">
-      <Card title="Locked funding" extra={<Tag tone="gray">Historical</Tag>}>
-        <p className="money">{money(batch.amounts.wholesaler)} <small>{asset.code}</small></p>
-        <p className="card-description">The supplier’s share of the recorded funded escrow balance of {money(snapshots.funded.escrow)} {asset.code}.</p>
-        <Link href={transactions.fund.url}>View funding transaction</Link>
+function SupplierAssurance({ online }: { online: boolean }) {
+  const paid = snapshots.settled.wholesaler - snapshots.before_funding.wholesaler
+  return <div className="assurance-layout">
+    <Card title="Supplier payment assurance" extra={<Tag tone="gray">Historical funding proof</Tag>}>
+      <div className="assurance-amounts">
+        <div><span>Supplier payout</span><strong>{money(batch.amounts.wholesaler)} <small>{asset.code}</small></strong></div>
+        <div><span>Recorded deposit</span><strong>{money(snapshots.funded.escrow)} <small>{asset.code}</small></strong></div>
+      </div>
+      <dl className="assurance-terms">
+        <div><dt>Supplier receiving address</dt><dd><code>{roles.wholesaler}</code></dd></div>
+        <div><dt>Authorized verifier</dt><dd><code>{roles.verifier}</code></dd></div>
+        <div><dt>Settlement conditions</dt><dd>Settlement requires the assigned verifier to confirm delivery. The contract checks the signature and the quantity of {batch.quantity} kits.</dd></div>
+      </dl>
+      <Link href={transactions.fund.url}>View funding transaction</Link>
+    </Card>
+    <div className="assurance-side">
+      <Card title="Before deciding to ship" extra={<Tag tone="gray">Recorded {batch.status}</Tag>}>
+        <p className="card-description">The funding receipt lets a supplier check the committed amount. The contract records who gets paid and who can approve settlement.</p>
+        <p className="recorded-note">This batch settled and the supplier received {money(paid)} {asset.code}. The receipt applies to this order only.</p>
       </Card>
-      <Card title="Received payment" extra={<Tag>Confirmed</Tag>}>
-        <p className="money">{money(snapshots.settled.wholesaler - snapshots.before_funding.wholesaler)} <small>{asset.code}</small></p>
-        <p className="card-description">The supplier’s balance increased when the actual Testnet batch settled.</p>
-        <Link href={transactions.settle.url}>View settlement transaction</Link>
-      </Card>
+      <LiveVerification online={online} />
     </div>
+  </div>
+}
+
+function Supplier({ demo, apply, online }: { demo: Demo; apply: ApplyAction; online: boolean }) {
+  return <>
+    <SupplierAssurance online={online} />
     <DeliveryForm role="supplier" demo={demo} apply={apply} />
-    <Card title="Escrow proof" extra={<Link href={evidence.contractUrl}>View contract</Link>}><Transactions /></Card>
+    <Card title="Escrow and payout history" extra={<Link href={evidence.contractUrl}>View contract</Link>}><Transactions /></Card>
   </>
 }
 
-function Shop({ demo, apply, reset, online, cached }: { demo: Demo; apply: ApplyAction; reset: () => void | Promise<void>; online: boolean; cached: boolean }) {
+type FieldProps = { demo: Demo; apply: ApplyAction; reset: () => void | Promise<void>; online: boolean; cached: boolean }
+
+function VoucherWorkspace({ demo, apply, reset, online, cached, guided = false }: FieldProps & { guided?: boolean }) {
   const [input, setInput] = useState('')
   const [notice, setNotice] = useState({ text: '', error: false })
   const pending = demo.redemptions.filter((record) => !record.synced).length
@@ -228,12 +251,12 @@ function Shop({ demo, apply, reset, online, cached }: { demo: Demo; apply: Apply
     setNotice({ text: result.message, error: !result.ok })
   }
   return <>
-    <DeliveryForm role="shop" demo={demo} apply={apply} />
     <div className="grid">
       <Card title="Redeem a paper voucher" extra={<Tag tone="amber">Local demo</Tag>}>
         <p className="card-description">{batchLabel} · {story.roles.shop.name}</p>
         <form className="voucher-form" onSubmit={submit}>
-          <label htmlFor="voucher">Voucher code</label>
+          <div className="voucher-label"><label htmlFor="voucher">Voucher code</label>
+            {guided && <button type="button" className="text-button" onClick={() => setInput(codes[0])}>Use sample voucher</button>}</div>
           <div><input id="voucher" value={input} onChange={(event) => setInput(event.target.value)} placeholder={codes[0]} required autoComplete="off" /><button className="button primary">Record redemption</button></div>
         </form>
         <p className={`notice ${notice.error ? 'error' : ''}`} role="status">{notice.text}</p>
@@ -264,6 +287,112 @@ function Shop({ demo, apply, reset, online, cached }: { demo: Demo; apply: Apply
         }
       }}>Reset demo</button></div>
     </Card>
+  </>
+}
+
+function Shop(props: FieldProps) {
+  return <>
+    <DeliveryForm role="shop" demo={props.demo} apply={props.apply} />
+    <VoucherWorkspace {...props} />
+  </>
+}
+
+const guidedSteps = [
+  { title: 'NGO secures funding', short: 'Secure funding', icon: 'lock' },
+  { title: 'Supplier verifies before dispatch', short: 'Verify before dispatch', icon: 'verifier' },
+  { title: 'Goods delivered & vouchers redeemed', short: 'Deliver & redeem', icon: 'box' },
+  { title: 'Settlement verified', short: 'Verify settlement', icon: 'check' },
+] as const
+
+function PaymentFlow({ settled = false }: { settled?: boolean }) {
+  const transaction = transactions[settled ? 'settle' : 'fund']
+  return <Card title={settled ? 'Both payouts confirmed' : 'The NGO deposits before dispatch'}
+    extra={<Tag>{settled ? 'Confirmed Testnet settlement' : 'Recorded Testnet deposit'}</Tag>}>
+    <div className="payment-flow">
+      <div className="payment-node escrow-node"><Icon name={settled ? 'check' : 'lock'} />
+        <span>{settled ? 'Total settled' : 'Deposit into escrow'}</span>
+        <strong>{money(batch.amounts.total)} <small>{asset.code}</small></strong>
+      </div>
+      <Icon name="arrow" size={23} />
+      <div className="payment-node"><Icon name="wholesaler" />
+        <span>{settled ? 'Supplier received' : 'Supplier allocation'}</span>
+        <strong>{money(batch.amounts.wholesaler)} <small>{asset.code}</small></strong>
+      </div>
+      <span className="payment-plus" aria-hidden="true">+</span>
+      <div className="payment-node"><Icon name="shop" />
+        <span>{settled ? 'Local shop received' : 'Local shop allocation'}</span>
+        <strong>{money(batch.amounts.shop)} <small>{asset.code}</small></strong>
+      </div>
+    </div>
+    <div className="proof-footer">
+      <p>{settled ? 'One transaction paid both recipients after verifier approval.' : 'The confirmed deposit was recorded before settlement.'} <small>Ledger {transaction.ledger.toLocaleString('en')}</small></p>
+      <Link href={transaction.url}>{settled ? 'View settlement transaction' : 'View funding transaction'}</Link>
+    </div>
+  </Card>
+}
+
+function GuidedDemo(props: FieldProps) {
+  const [step, setStep] = useState(0)
+  const stageTitle = useRef<HTMLHeadingElement>(null)
+
+  function goToStep(next: number) {
+    setStep(next)
+    requestAnimationFrame(() => {
+      stageTitle.current?.focus({ preventScroll: true })
+      stageTitle.current?.scrollIntoView({ block: 'start' })
+    })
+  }
+
+  return <>
+    <section className="guided-hero" aria-labelledby="guided-heading">
+      <div className="guided-intro">
+        <p className="eyebrow">Emergency procurement · Guided demo</p>
+        <h1 id="guided-heading">Ship with confidence.</h1>
+        <p>An NGO needs emergency supplies. Its supplier can verify the funded order and payment terms before shipping to a new buyer.</p>
+        <button className="button hero-button" onClick={() => goToStep(1)}>Review supplier proof <Icon name="arrow" size={16} /></button>
+      </div>
+      <div className="hero-order">
+        <div className="hero-order-top"><span><Icon name="lock" size={17} /> Recorded Testnet order</span><Tag>{batch.status}</Tag></div>
+        <div className="hero-order-label">{batchLabel} · {batch.quantity} relief kits</div>
+        <strong className="hero-order-amount">{money(batch.amounts.total)} <small>{asset.code}</small></strong>
+        <span className="hero-order-caption">Originally deposited in escrow</span>
+        <div className="hero-order-split">
+          <div><strong>{money(batch.amounts.wholesaler)} {asset.code}</strong><span>Supplier payout</span></div>
+          <div><strong>{money(batch.amounts.shop)} {asset.code}</strong><span>Local shop payout</span></div>
+        </div>
+      </div>
+    </section>
+
+    <nav className="guided-steps" aria-label="Demo stages">
+      {guidedSteps.map((item, index) => <button key={item.title} type="button" aria-current={step === index ? 'step' : undefined} onClick={() => goToStep(index)}>
+        <span className="step-number">{index + 1}</span><strong>{item.short}</strong><Icon name={item.icon} size={17} />
+      </button>)}
+    </nav>
+
+    <section className="guided-stage" aria-labelledby="stage-title">
+      <header className="stage-header">
+        <div><p className="eyebrow">Step {step + 1} of {guidedSteps.length}</p><h2 id="stage-title" ref={stageTitle} tabIndex={-1}>{guidedSteps[step].title}</h2></div>
+        <div className="stage-controls">
+          <button type="button" className="button secondary" aria-label="Previous step" disabled={step === 0} onClick={() => goToStep(step - 1)}><Icon name="back" size={15} /> Previous</button>
+          {step < guidedSteps.length - 1
+            ? <button type="button" className="button primary" aria-label="Next step" onClick={() => goToStep(step + 1)}>Next <Icon name="arrow" size={15} /></button>
+            : <button type="button" className="button primary" onClick={() => goToStep(0)}>Restart walkthrough</button>}
+        </div>
+      </header>
+      {step === 0 && <PaymentFlow />}
+      {step === 1 && <SupplierAssurance online={props.online} />}
+      {step === 2 && <>
+        <div className="simulation-note"><Tag tone="amber">Browser-local simulation</Tag>
+          <p>Record {batch.quantity} kits, try a receipt for {batch.quantity - 1}, then correct it. Redeem the sample voucher and try it again.</p>
+        </div>
+        <div className="grid delivery-pair">
+          <DeliveryForm role="supplier" demo={props.demo} apply={props.apply} suggested />
+          <DeliveryForm role="shop" demo={props.demo} apply={props.apply} />
+        </div>
+        <VoucherWorkspace {...props} guided />
+      </>}
+      {step === 3 && <PaymentFlow settled />}
+    </section>
   </>
 }
 
@@ -310,25 +439,27 @@ function Verification({ demo, online }: { demo: Demo; online: boolean }) {
   </>
 }
 
+type Page = Role | 'overview'
+
 const pages: Record<Role, { title: string; detail: string }> = {
   agency: { title: 'Agency overview', detail: 'Monitor funding and distribution for your relief batch.' },
-  wholesaler: { title: 'Supplier workspace', detail: 'Review escrow proof, delivery, and the confirmed supplier payout.' },
+  wholesaler: { title: 'Supplier workspace', detail: 'Review the funding commitment, payout terms, and live contract status.' },
   shop: { title: 'Voucher redemption', detail: 'Confirm receipt and record aid collection, even offline after the app is cached.' },
   verifier: { title: 'Verification & settlement', detail: 'Review delivery records and inspect the verified Testnet payout.' },
 }
 
-function currentRole(): Role {
+function currentPage(): Page {
   const hash = location.hash.slice(1)
-  return Object.hasOwn(pages, hash) ? hash as Role : 'agency'
+  return Object.hasOwn(pages, hash) ? hash as Role : 'overview'
 }
 
 function App() {
   const { online, cached } = useConnectivity()
-  const [role, setRole] = useState(currentRole)
+  const [role, setRole] = useState(currentPage)
   const [demo, setDemo] = useState(() => readDemo(localStorage, key))
   const [replay, setReplay] = useState<number | null>(null)
   useEffect(() => {
-    const onHash = () => { setRole(currentRole()); window.scrollTo(0, 0) }
+    const onHash = () => { setRole(currentPage()); window.scrollTo(0, 0) }
     const onStorage = (event: StorageEvent) => { if (event.key === key || event.key === null) setDemo(readDemo(localStorage, key)) }
     addEventListener('hashchange', onHash)
     addEventListener('storage', onStorage)
@@ -358,20 +489,23 @@ function App() {
   }
   return <div className="shell">
     <aside className="sidebar">
-      <a className="brand" href="#agency"><span className="brand-mark"><Icon name="brand" size={21} /></span><strong>{story.name}</strong></a>
-      <nav aria-label="Role views">
-        <span className="nav-caption">WORKSPACE</span>
+      <a className="brand" href="#overview"><span className="brand-mark"><Icon name="brand" size={21} /></span><strong>{story.name}</strong></a>
+      <nav aria-label="Workspace navigation">
+        <a className="overview-link" href="#overview" aria-current={role === 'overview' ? 'page' : undefined}><Icon name="overview" />Guided Demo</a>
+        <span className="nav-caption">Role views</span>
         {(Object.keys(story.roles) as Role[]).map((id) => <a key={id} href={`#${id}`} aria-current={role === id ? 'page' : undefined}><Icon name={id} />{story.roles[id].label}</a>)}
       </nav>
       <div className="sidebar-foot"><span className="network-dot" /><div><strong>{evidence.network}</strong><small>Recorded evidence</small></div></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><p>{story.subtitle}</p><Tag>{batchLabel} · {batch.status} (recorded)</Tag></header>
+      <header className="topbar"><p>Stellar Testnet prototype</p><Tag>{batchLabel} · {batch.status} (recorded)</Tag></header>
       <main>
-        <div className="page-heading"><div><h1>{pages[role].title}</h1><p>{pages[role].detail}</p></div><Link href={evidence.contractUrl}>Open Testnet contract</Link></div>
-        {replay !== null && <Replay phase={replay} setPhase={setReplay} close={() => setReplay(null)} />}
+        {role === 'overview'
+          ? <GuidedDemo demo={demo} apply={apply} reset={reset} online={online} cached={cached} />
+          : <div className="page-heading"><div><h1>{pages[role].title}</h1><p>{pages[role].detail}</p></div><Link href={evidence.contractUrl}>Open Testnet contract</Link></div>}
+        {role === 'agency' && replay !== null && <Replay phase={replay} setPhase={setReplay} close={() => setReplay(null)} />}
         {role === 'agency' && <Agency openReplay={() => setReplay(0)} />}
-        {role === 'wholesaler' && <Supplier demo={demo} apply={apply} />}
+        {role === 'wholesaler' && <Supplier demo={demo} apply={apply} online={online} />}
         {role === 'shop' && <Shop demo={demo} apply={apply} reset={reset} online={online} cached={cached} />}
         {role === 'verifier' && <Verification demo={demo} online={online} />}
         <footer><span>Stellar Relief · Testnet demonstration</span><Link href={`https://stellar.expert/explorer/testnet/contract/${asset.sac}`}>USDC asset contract</Link></footer>

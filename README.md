@@ -92,7 +92,16 @@ npm --prefix web ci
 npm --prefix web run dev -- --host 127.0.0.1
 ```
 
-Open the local URL printed by Vite. Start Historical Replay from **Agency**, record three kits from **Supplier**, and confirm the same quantity from **Local Shop**. Try vouchers `BR-1-01`, `BR-1-02`, and `BR-1-03`. The web demo requires no wallet or environment variables. The production build was verified on Apple silicon.
+Open the local URL printed by Vite. **Guided Demo** opens by default. The Agency, Supplier, Local Shop, and Verification views remain available in the navigation. Historical Replay is under **Agency**. The web demo requires no wallet or environment variables.
+
+### 60-second guided demo
+
+1. **0–10 s · Fund the order.** Show the recorded 10 USDC deposit and the 7 USDC supplier and 3 USDC shop allocations.
+2. **10–30 s · Check before dispatch.** Open **Review supplier proof**. Show the supplier address, verifier, and funding transaction. Select **Verify on Stellar Testnet** to check the live contract and batch fields. The recorded order has already settled, and the RPC check does not read the current escrow token balance.
+3. **30–50 s · Demonstrate field operations.** Record three kits, try a shop receipt of two, then confirm three. Select **Use sample voucher**, redeem it, and try it again. These actions use unsigned records on this browser.
+4. **50–60 s · Show settlement.** Open the confirmed transaction that paid both recipients together. The browser demo actions have no effect on that transaction.
+
+Use **Reset demo** in the delivery stage or Local Shop to clear this browser's field records before presenting again.
 
 To try offline reopening, use the production build on HTTPS or localhost:
 
@@ -101,7 +110,7 @@ npm --prefix web run build
 npm --prefix web run preview -- --host 127.0.0.1
 ```
 
-Open the app online and wait until **Local Shop** reports that it is cached. Then disconnect and reload. To compare the deployed batch with the recorded evidence, reconnect and choose **Verify on Stellar Testnet** in **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
+Open the app online and wait for the delivery stage or **Local Shop** to report that it is cached. Then disconnect and reload. Reconnect to use **Verify on Stellar Testnet** in the supplier stage, **Supplier**, or **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
 
 ```sh
 node --disable-warning=ExperimentalWarning --experimental-strip-types web/scripts/verify-testnet.mjs

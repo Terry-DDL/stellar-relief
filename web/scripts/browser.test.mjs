@@ -80,7 +80,7 @@ try {
       errors.push(`[${requestPhases.get(response.request())?.phase ?? phase}] HTTP ${response.status()}: ${response.url()}`)
     }
   })
-  const nav = page.getByRole('navigation', { name: 'Role views' })
+  const nav = page.getByRole('navigation', { name: 'Workspace navigation' })
   const button = (name) => page.getByRole('button', { name, exact: true })
   const visible = (text) => page.getByText(text, { exact: true }).first().waitFor()
   const heading = (name) => page.getByRole('heading', { name, exact: true }).waitFor()
@@ -98,6 +98,12 @@ try {
     }
   }
 
+  await heading('Ship with confidence.')
+  await heading('NGO secures funding')
+  const funding = page.getByRole('link', { name: 'View funding transaction' })
+  assert.equal(await funding.getAttribute('href'), evidence.transactions.fund.url)
+  assert.equal(await nav.getByRole('link', { name: 'Guided Demo' }).getAttribute('aria-current'), 'page')
+  await nav.getByRole('link', { name: 'Agency', exact: true }).click()
   await heading('Agency overview')
   await visible('Batch 001 · Settled (recorded)')
   for (const link of [evidence.contractUrl, evidence.transactions.fund.url, evidence.transactions.settle.url]) {
@@ -116,8 +122,11 @@ try {
 
   await nav.getByRole('link', { name: 'Supplier' }).click()
   await heading('Supplier workspace')
-  await heading('Locked funding')
-  await heading('Received payment')
+  await heading('Supplier payment assurance')
+  await heading('Live Testnet verification')
+  await page.getByText(/Settlement requires the assigned verifier to confirm delivery/).waitFor()
+  assert.ok(await page.getByText(evidence.roles.wholesaler, { exact: true }).isVisible())
+  assert.ok(await page.getByText(evidence.roles.verifier, { exact: true }).isVisible())
   await page.getByLabel('Quantity delivered').fill('3')
   await button('Record demo delivery').click()
   await visible('Supplier recorded 3 kits. Awaiting shop confirmation.')
@@ -232,9 +241,42 @@ try {
   await visible('Browser online')
   await visible('Batch 001 · Settled (recorded)')
 
+  await nav.getByRole('link', { name: 'Guided Demo' }).click()
+  await heading('NGO secures funding')
+  assert.ok(await button('Previous step').isDisabled())
+  await button('Next step').click()
+  await heading('Supplier verifies before dispatch')
+  await button('Verify on Stellar Testnet').click()
+  await page.getByText(/Verification unavailable/).waitFor()
+  await button('Previous step').click()
+  await heading('NGO secures funding')
+  await button('Next step').click()
+  await button('Next step').click()
+  await heading('Goods delivered & vouchers redeemed')
+  await page.getByLabel('Quantity delivered').fill('3')
+  await button('Record demo delivery').click()
+  await page.getByLabel('Quantity received').fill('2')
+  await button('Confirm demo receipt').click()
+  await visible('Received quantity must match the supplier record.')
+  await page.getByLabel('Quantity received').fill('3')
+  await button('Confirm demo receipt').click()
+  await button('Use sample voucher').click()
+  await button('Record redemption').click()
+  await visible('BR-1-01 recorded on this browser.')
+  await button('Use sample voucher').click()
+  await button('Record redemption').click()
+  await visible('BR-1-01 was already redeemed on this browser.')
+  await button('Next step').click()
+  await heading('Settlement verified')
+  const settlement = page.getByRole('link', { name: 'View settlement transaction' })
+  assert.equal(await settlement.getAttribute('href'), evidence.transactions.settle.url)
+  await button('Restart walkthrough').click()
+  await heading('NGO secures funding')
+  console.log('PASS default Guided Demo, four steps, live check, receipt and voucher safeguards, settlement link')
+
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    for (const role of ['Agency', 'Supplier', 'Local Shop', 'Verification']) {
+    for (const role of ['Guided Demo', 'Agency', 'Supplier', 'Local Shop', 'Verification']) {
       await nav.getByRole('link', { name: role, exact: true }).click()
       await nav.locator('a[aria-current=page]').getByText(role, { exact: true }).waitFor()
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${role} overflows at ${width}px`)
@@ -242,7 +284,7 @@ try {
   }
   assert.deepEqual(errors, [])
   assert.ok(requests.every((url) => url.startsWith(origin + '/') || url === rpc + '/'), 'The UI made an unexpected external request')
-  console.log('PASS verification balances, reset, all four layouts at 320/390/1440px, no browser errors or external requests')
+  console.log('PASS verification balances, reset, all five views at 320/390/1440px, no browser errors or external requests')
 } finally {
   await browser?.close()
   server.close()
