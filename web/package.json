@@ -1,0 +1,26 @@
+{
+  "name": "stellar-relief-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "check": "tsc --noEmit",
+    "build": "npm run check && vite build",
+    "preview": "vite preview",
+    "test:evidence": "node scripts/evidence.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test scripts/demo.test.mjs && npm run test:evidence",
+    "test:browser": "node scripts/browser.test.mjs"
+  },
+  "dependencies": {
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "playwright-core": "1.65.0-alpha-2026-10-30",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  }
+}

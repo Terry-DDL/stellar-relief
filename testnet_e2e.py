@@ -674,7 +674,7 @@ def save_report(folder, handoff, data):
         lines += ["", f"**{name}: {check['status']}**", "", "```text", check["detail"], "```"]
     report = "\n".join(lines + ["", marker, ""])
     (folder / "report.md").write_text(report)
-    if marker not in handoff.read_text():
+    if not handoff.exists() or marker not in handoff.read_text():
         with handoff.open("a") as stream:
             stream.write(report)
             stream.flush()
@@ -693,8 +693,7 @@ def main():
     parser.add_argument("--allow-inconclusive", action="store_true",
                         help="Allow settlement after inconclusive tool checks; never bypass failed safety checks")
     args = parser.parse_args()
-    handoff = PROJECT.parent / "HANDOFF.md"
-    require(handoff.is_file(), "Missing HANDOFF.md")
+    handoff = PROJECT / "HANDOFF.md"
     if args.check_accounts or not args.resume:
         chain = Testnet(RUN_ROOT)
         chain.preflight()

@@ -1,0 +1,89 @@
+{
+  "runId": "f141f179b1d94e349421b48e0bfbafe6",
+  "network": "Stellar Testnet",
+  "contractId": "CCOZA3KQNXIYB3ERKKAYZ4NKWBHTZQFSIEQQS7HXEBGH3RULUXHJ7PMR",
+  "contractUrl": "https://stellar.expert/explorer/testnet/contract/CCOZA3KQNXIYB3ERKKAYZ4NKWBHTZQFSIEQQS7HXEBGH3RULUXHJ7PMR",
+  "wasmHash": "4b763614f798027da3ed93126242ee947410cce3bfb563ccf107c7d0328bdeb8",
+  "asset": {
+    "code": "USDC",
+    "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    "sac": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "unitsPerToken": 10000000
+  },
+  "batch": {
+    "id": 1,
+    "quantity": 3,
+    "status": "Settled",
+    "amounts": {
+      "total": 100000000,
+      "wholesaler": 70000000,
+      "shop": 30000000
+    }
+  },
+  "roles": {
+    "agency": "GDD3ZJLJN2UI3DXEDWHHIE4OWW3HPZXZR2V7GHAWVGCFBU5TTNAXYASL",
+    "wholesaler": "GDMF6PJ4KZVW774WV4QLJIFRDA2APFKCQGVM7AU6XEXQE6IZ3JZE6F76",
+    "shop": "GBQ5FPATOGZV76UB3TTZTD22WQXN7IXPK6OTPCY2CJ2YJM27SLTATAGD",
+    "verifier": "GA3SVKPZYEBIKRETVSB237DNKF6BEGSBVOSB6AWCWIG6FI7HITZ75N4V"
+  },
+  "transactions": {
+    "upload": {
+      "hash": "55c1e7ff271d4cbc83811415c6e84278049f265d45304c9896c912e9cb6922b1",
+      "url": "https://stellar.expert/explorer/testnet/tx/55c1e7ff271d4cbc83811415c6e84278049f265d45304c9896c912e9cb6922b1",
+      "ledger": 5688193,
+      "status": "SUCCESS"
+    },
+    "deploy": {
+      "hash": "65b77d82b6bcfeaeee2b1406741ddd5e347f7b585eaa40ad72a4300a6e2f6e24",
+      "url": "https://stellar.expert/explorer/testnet/tx/65b77d82b6bcfeaeee2b1406741ddd5e347f7b585eaa40ad72a4300a6e2f6e24",
+      "ledger": 5688194,
+      "status": "SUCCESS"
+    },
+    "fund": {
+      "hash": "dc5ee151a1ef632031d0e27c7629382e02e956067f894f2135ce0ac5bf5ed5ec",
+      "url": "https://stellar.expert/explorer/testnet/tx/dc5ee151a1ef632031d0e27c7629382e02e956067f894f2135ce0ac5bf5ed5ec",
+      "ledger": 5688196,
+      "status": "SUCCESS"
+    },
+    "settle": {
+      "hash": "0ae91cd2ba8aea76a0ab470dd08f844a9290111666ce6582918ce4522ff8dda4",
+      "url": "https://stellar.expert/explorer/testnet/tx/0ae91cd2ba8aea76a0ab470dd08f844a9290111666ce6582918ce4522ff8dda4",
+      "ledger": 5688199,
+      "status": "SUCCESS"
+    }
+  },
+  "snapshots": {
+    "before_funding": {
+      "agency": 100000000,
+      "escrow": 0,
+      "wholesaler": 0,
+      "shop": 0
+    },
+    "funded": {
+      "agency": 0,
+      "escrow": 100000000,
+      "wholesaler": 0,
+      "shop": 0
+    },
+    "settled": {
+      "agency": 0,
+      "escrow": 0,
+      "wholesaler": 70000000,
+      "shop": 30000000
+    }
+  },
+  "negativeChecks": {
+    "authorization": {
+      "result": "PASS",
+      "error": "Error(Auth, InvalidAction)"
+    },
+    "quantity": {
+      "result": "PASS",
+      "error": "Error(Contract, #2)"
+    },
+    "duplicate": {
+      "result": "PASS",
+      "error": "Error(Contract, #5)"
+    }
+  }
+}

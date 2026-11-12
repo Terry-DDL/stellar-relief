@@ -105,6 +105,12 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.chain.sent, ["upload", "deploy", "fund", "settle"])
         self.assertEqual(self.handoff.read_text().count("run-id: run"), 1)
 
+    def test_fresh_checkout_creates_a_local_handoff_on_success(self):
+        self.handoff.unlink()
+        self.execute(amount=10)
+        self.assertIn("run-id: run", self.handoff.read_text())
+        self.assertTrue((self.run / "report.md").is_file())
+
     def test_small_usdc_run_reports_actual_amount_and_cannot_change_it(self):
         self.execute(amount=10)
         self.assertIn("10 USDC → 7 USDC (wholesaler) + 3 USDC (shop)", self.handoff.read_text())
