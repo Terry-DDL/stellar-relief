@@ -7,8 +7,14 @@ import { chromium } from 'playwright-core'
 const evidence = JSON.parse(readFileSync(new URL('../src/evidence.json', import.meta.url)))
 const dist = new URL('../dist/', import.meta.url)
 const mime = { html: 'text/html', js: 'application/javascript', css: 'text/css' }
+const probePath = '/__test__/network'
+let probeHits = 0
 const server = createServer((request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname.slice(1) || 'index.html'
+  if (request.method === 'GET' && `/${path}` === probePath) {
+    response.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end(String(++probeHits))
+    return
+  }
   if (path === 'favicon.ico') {
     response.writeHead(204).end()
     return
@@ -39,14 +45,59 @@ try {
   const page = await context.newPage()
   const errors = []
   const requests = []
-  page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
-  page.on('request', (request) => requests.push(request.url()))
+  let offline = false
+  let phase = 'initial online visit'
+  const requestPhases = new WeakMap()
+  const optionalOfflineUrls = new Set(['/favicon.ico', '/sw.js'].map((path) => origin + path))
+  const probeUrl = origin + probePath
+  const disconnected = 'net::ERR_INTERNET_DISCONNECTED'
+  function checkFailure(source, url, reason, when = { offline, phase }) {
+    const disconnectedRequest = source === 'console'
+      ? reason === `Failed to load resource: ${disconnected}`
+      : source === 'request GET' && reason === disconnected
+    const optional = optionalOfflineUrls.has(url) || (url === probeUrl && when.phase === 'offline network probe')
+    const expected = when.offline && disconnectedRequest && optional
+    const diagnostic = `[${when.phase}] ${source}: ${url || '(URL unavailable)'} · ${reason}`
+    console.log(`${expected ? 'EXPECTED' : 'UNEXPECTED'} ${diagnostic}`)
+    if (!expected) errors.push(diagnostic)
+  }
+
+  page.on('pageerror', (error) => errors.push(`[${phase}] JavaScript: ${error.message}`))
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return
+    // Playwright filters favicon requests from page network events.
+    checkFailure('console', message.location().url, message.text())
+  })
+  page.on('request', (request) => {
+    requests.push(request.url())
+    requestPhases.set(request, { offline, phase })
+  })
+  page.on('requestfailed', (request) => {
+    checkFailure(`request ${request.method()}`, request.url(), request.failure()?.errorText, requestPhases.get(request))
+  })
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      errors.push(`[${requestPhases.get(response.request())?.phase ?? phase}] HTTP ${response.status()}: ${response.url()}`)
+    }
+  })
   const nav = page.getByRole('navigation', { name: 'Role views' })
   const button = (name) => page.getByRole('button', { name, exact: true })
   const visible = (text) => page.getByText(text, { exact: true }).first().waitFor()
   const heading = (name) => page.getByRole('heading', { name, exact: true }).waitFor()
-  await page.goto(origin)
+  const initial = await page.goto(origin)
+  assert.ok(initial?.ok() && !initial.fromServiceWorker(), 'Initial visit must load from the server')
+  const assets = await page.locator('script[src], link[rel="stylesheet"]').evaluateAll((elements) =>
+    elements.map((element) => element.src ?? element.href))
+  assert.ok(assets.length >= 2, 'Production HTML must reference its script and stylesheet')
+  async function reloadOffline() {
+    const assetResponses = assets.map((url) => page.waitForResponse(url))
+    const responses = await Promise.all([page.reload(), ...assetResponses])
+    for (const response of responses) {
+      assert.ok(response?.ok() && response.fromServiceWorker(),
+        `[${phase}] Expected a successful service worker response for ${response?.url() ?? 'the document'}`)
+    }
+  }
+
   await heading('Agency overview')
   await visible('Batch 001 · Settled (recorded)')
   for (const link of [evidence.contractUrl, evidence.transactions.fund.url, evidence.transactions.settle.url]) {
@@ -88,8 +139,10 @@ try {
   await button('Confirm demo receipt').click()
   await visible('Shop confirmed 3 kits.')
   await page.getByText(/App cached for offline reopening/).waitFor()
+  phase = 'first offline reload'
+  offline = true
   await context.setOffline(true)
-  await page.reload()
+  await reloadOffline()
   await heading('Voucher redemption')
   await visible('Browser offline')
   await visible('Shop confirmed 3 kits.')
@@ -97,20 +150,55 @@ try {
   await button('Record redemption').click()
   await visible('BR-1-01 recorded on this browser.')
   await visible('Pending sync')
-  await page.reload()
+  phase = 'offline persistence reload'
+  await reloadOffline()
   await visible('1 of 3 redeemed')
   await voucher.fill('BR-1-01')
   await button('Record redemption').click()
   await visible('BR-1-01 was already redeemed on this browser.')
   assert.equal(await button('Simulate reconciliation').isEnabled(), false)
+
+  phase = 'offline navigation'
+  for (const [role, title] of [
+    ['Agency', 'Agency overview'],
+    ['Supplier', 'Supplier workspace'],
+    ['Verification', 'Verification & settlement'],
+    ['Local Shop', 'Voucher redemption'],
+  ]) {
+    await nav.getByRole('link', { name: role, exact: true }).click()
+    await heading(title)
+    if (role === 'Verification') assert.equal(await button('Verify on Stellar Testnet').isEnabled(), false)
+  }
+  await visible('1 of 3 redeemed')
+
+  phase = 'offline network probe'
+  const reachedServerOffline = await page.evaluate(async (path) => {
+    try {
+      await fetch(path, { cache: 'no-store' })
+      return true
+    } catch {
+      return false
+    }
+  }, probePath)
+  assert.equal(reachedServerOffline, false, 'The uncached network probe must fail while offline')
+  assert.equal(probeHits, 0, 'The offline probe must not reach the server')
+
   await context.setOffline(false)
+  offline = false
+  phase = 'online recovery'
   await visible('Browser online')
+  const serverReply = await page.evaluate(async (path) => {
+    const response = await fetch(path, { cache: 'no-store' })
+    return { status: response.status, body: await response.text() }
+  }, probePath)
+  assert.deepEqual(serverReply, { status: 200, body: '1' })
+  assert.equal(probeHits, 1, 'The online probe must reach the real HTTP server')
   await visible('Pending sync')
   await button('Simulate reconciliation').click()
   await visible('Reconciled (demo)')
   await page.reload()
   await visible('Reconciled (demo)')
-  console.log('PASS delivery, voucher validation, duplicate refusal, persistence, and reconciliation')
+  console.log('PASS offline shell and assets, voucher persistence and duplicate refusal, role navigation, and real HTTP recovery')
 
   await nav.getByRole('link', { name: 'Verification' }).click()
   await heading('Verification & settlement')
