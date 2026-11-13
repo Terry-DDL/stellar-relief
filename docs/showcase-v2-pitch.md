@@ -42,8 +42,10 @@ Soroban holds the pool and enforces who can claim each payment. If no order wins
 
 **Built and verified on Testnet:** two donors deposited 6 + 4 test USDC and voted 6–4. The supplier [claimed 7 USDC](https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231); after issuer attestation, the shop [claimed 3 USDC](https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2). [Exception-path evidence](testnet-v2-exception-paths.md) covers full refunds, partial refunds that preserve an earned supplier payout, and rejected unauthorized or duplicate actions.
 
-**Try it:** https://stellar-relief-v2.vercel.app/  
-**Code:** https://github.com/Terry-DDL/stellar-relief  
+**Try it:** https://stellar-relief-v2.vercel.app/
+
+**Code:** https://github.com/Terry-DDL/stellar-relief
+
 **Current contract:** https://stellar.expert/explorer/testnet/contract/CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH
 
 **Honest boundary:** The web buttons are a browser walkthrough; the linked Testnet transactions are actual contract calls. Signed declarations record claims by named roles, but do not independently prove that physical goods arrived. Voucher eligibility, independent checks, wallet-connected web payments, and real fiat conversion need partners and further work.
@@ -52,18 +54,22 @@ Soroban holds the pool and enforces who can claim each payment. If no order wins
 
 The spoken parts target roughly two minutes; the video takes the other minute. Rehearse aloud and cut words as needed.
 
-**0:00–0:35 — Customer problem**  
+**0:00–0:35 — Customer problem**
+
 "After a disaster, donations may arrive quickly, but a supplier still asks: will I be paid if I ship? A neighborhood shop asks the same question before giving out essentials. Families may not have cash when they reach the store. That is the payment gap Stellar Relief addresses. Our first customer would be a relief procurement program working with local suppliers and shops; households are the people it serves."
 
-**0:35–1:00 — Payment mechanism**  
+**0:35–1:00 — Payment mechanism**
+
 "Donors put test USDC directly into a Stellar smart contract and vote on a relief order. The money stays locked under public rules. Once the supplier declares dispatch and the shop confirms receipt, the supplier can claim its earned share. After a separate issuer attests distribution, the shop can claim its share. Refunds cannot take money a supplier already earned."
 
 **1:00–2:00 — Play the one-minute prototype video.**
 
-**2:00–2:40 — What is real today**  
-"This is a working Testnet contract, not just a design. In our sample, two donors funded ten test USDC and voted six to four. The supplier claimed seven USDC; after distribution attestation, the shop claimed three. We also tested a failed vote and a distribution timeout: donors recovered only unearned funds, while the supplier's earned payment remained safe. These transactions and the contract ID are linked in our Devpost entry."
+**2:00–2:40 — What is real today**
 
-**2:40–3:00 — Value and boundary**  
+"This is a working Testnet contract, not just a design. In our sample, two donors funded ten test USDC and voted six to four. The supplier claimed seven USDC; after distribution attestation, the shop claimed three. We also tested a failed vote and a distribution timeout: donors recovered only unearned funds, while the supplier's earned payment remained safe. These transactions and the contract ID are publicly linked in our repository."
+
+**2:40–3:00 — Value and boundary**
+
 "Stellar gives us low-cost cross-border transfer, public payment records, and enforceable payout rules without one intermediary holding the pool. The next step is a real pilot with independent eligibility and delivery checks. We would test whether a procurement organizer will pay for faster, more auditable campaign operations."
 
 ## One-minute video shot list
