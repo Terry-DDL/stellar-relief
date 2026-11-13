@@ -1,5 +1,7 @@
 # Stellar Relief
 
+[Try the live V2 demo](https://stellar-relief-v2.vercel.app/) · [View the current Testnet contract](https://stellar.expert/explorer/testnet/contract/CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH)
+
 Emergency suppliers need confidence they will be paid before shipping. Donors need a way to see which relief order their money funded and when local partners were paid. Stellar Relief V2 puts those decisions and payment conditions in a donor-governed Stellar contract.
 
 1. Donors contribute USDC directly to a Soroban pool and vote with weight proportional to their contribution.
@@ -62,7 +64,7 @@ Both instances used the earlier atomic-settlement contract. The [V2 evidence not
 
 ## Limitations and future work
 
-The demo uses fictional orders and local voucher records. The on-chain issuer records an aggregate count. Verified physical delivery, cross-device redemption, disputes, wallet integration, and production custody and token controls need further work. The revised contract needs a fresh Testnet run and independent security review before production use.
+The demo uses fictional orders and local voucher records. The on-chain issuer records an aggregate count. Verified physical delivery, cross-device redemption, disputes, wallet integration, and production custody and token controls need further work. The contract requires independent security review before production use.
 
 ## Historical V1
 

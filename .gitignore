@@ -6,6 +6,7 @@
 /.soroban/
 /web/node_modules/
 /web/dist/
+/web/.vercel/
 __pycache__/
 .env
 .env.*
