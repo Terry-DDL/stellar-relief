@@ -146,8 +146,11 @@ try {
   await checkTrackers(held, atSupplier)
   await button('Next step').click()
   await button('Donor A: Coastal').click()
+  // The click completes before the Web Lock callback and React commit.
+  await button('Donor A: Coastal').and(page.locator('[aria-pressed="true"]:disabled')).waitFor()
   assert.ok(await button('Donor A: Mountain').isDisabled())
   await button('Donor B: Mountain').click()
+  await button('Donor B: Mountain').and(page.locator('[aria-pressed="true"]:disabled')).waitFor()
   assert.equal(await button('Donor A: Coastal').getAttribute('aria-pressed'), 'true')
   assert.equal(await button('Donor A: Mountain').getAttribute('aria-pressed'), 'false')
   assert.equal(await button('Donor B: Mountain').getAttribute('aria-pressed'), 'true')
