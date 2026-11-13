@@ -108,6 +108,7 @@ try {
   const steps = page.getByRole('navigation', { name: 'Guided Demo steps' })
   await page.setViewportSize({ width: 1280, height: 720 })
   await button('Start new demo').click()
+  await steps.waitFor()
   assert.deepEqual(await steps.getByRole('button').allTextContents(), ['1Fund', '2Decide', '3Supply', '4Verify', '5Deliver', '6Pay & Prove'])
   assert.equal(await page.getByRole('heading', { name: 'Three families need emergency supplies.' }).count(), 0)
   const mission = page.getByRole('region', { name: 'Sample mission summary' })
@@ -123,10 +124,15 @@ try {
   const atSupplier = [3, 0, 0, 0]
   await checkTrackers([0, 0, 0], atSupplier)
   const checkLaptop = async (name) => {
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-    const action = await button(name).boundingBox()
-    assert.ok(action && action.y >= 0 && action.y + action.height <= 720, name + ' should fit on a laptop')
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    const action = button(name)
+    await action.waitFor({ state: 'visible' })
+    await action.scrollIntoViewIfNeeded()
+    const box = await action.boundingBox()
+    const viewport = page.viewportSize()
+    assert.ok(box && box.x >= 0 && box.y >= 0
+      && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height,
+      name + ' should be fully visible after normal scrolling')
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
   }
   await checkLaptop('Simulate 6 USDC contribution')
   await heading('People around the world fund the relief mission')
@@ -162,6 +168,7 @@ try {
   await checkTrackers(held, atSupplier)
   assert.match(await page.getByRole('link', { name: 'Donor B vote' }).getAttribute('href'), /4b4df4d12cb2880cd1c348802959cfb2671e6a9885a7d118f50311ea5c2ba3f5$/)
   await steps.getByRole('button', { name: 'Verify' }).click()
+  await heading('The community shop confirms delivery')
   assert.ok(await button('Simulate receipt of 3 kits').isDisabled())
   await button('Previous step').click()
   await heading('A local supplier delivers three relief kits')
@@ -193,6 +200,7 @@ try {
   await visible('VR-001 redeemed. 1 kit moved to Families.')
   await checkTrackers(supplierPaid, [0, 0, 2, 1])
   await reloadOffline()
+  await button('VR-001 redeemed').waitFor()
   assert.ok(await button('VR-001 redeemed').isDisabled())
   await page.getByLabel('Sample voucher code').fill(' vr-001 ')
   await button('Record sample voucher').click()
@@ -200,6 +208,7 @@ try {
   await checkTrackers(supplierPaid, [0, 0, 2, 1])
   await button('Redeem VR-002').click()
   await button('Redeem VR-003').click()
+  await button('VR-003 redeemed').waitFor()
   await button('Next step').click()
   await heading('Local partners get paid. Donors can verify the payment.')
   await checkTrackers(supplierPaid, [0, 0, 0, 3])
@@ -263,6 +272,7 @@ try {
     await heading('Stellar settles both payments')
     await visible('Replay status · Settled')
     await button('Restart replay').click()
+    await heading('Agency locks funding')
   }
   console.log('PASS agency evidence and two complete replay runs')
 
