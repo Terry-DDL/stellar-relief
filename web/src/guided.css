@@ -260,13 +260,12 @@
 .v2-item > span, .v2-total { color: var(--muted); font-size: .88rem; }
 .v2-total { margin: 10px 0; }
 .v2-item > .button, .v2-actions > .button, .v2-voucher-entry > .button { margin: 0; }
-.v2-proof, .v2-actions, .v2-voucher-entry, .v2-demo-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.v2-proof, .v2-actions, .v2-voucher-entry { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .v2-proof { margin-top: 14px; font-size: .82rem; }
-.v2-facts, .v2-voucher-entry { margin: 10px 0; }
+.v2-voucher-entry { margin: 10px 0; }
 .v2-voucher-entry { align-items: end; }
 .v2-voucher-entry label { display: grid; gap: 4px; color: var(--muted); font-size: .8rem; }
 .v2-voucher-entry input { width: min(100%, 13rem); min-height: 38px; padding: 7px 10px; border: 1px solid #aebfc9; border-radius: 8px; }
-.v2-demo-footer { justify-content: space-between; color: var(--muted); font-size: .82rem; }
 @media (max-width: 1120px) {
   .v2-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -295,10 +294,46 @@
 .v2-mission-heading strong { color: var(--navy); }
 .v2-funding progress { display: block; width: min(100%, 22rem); height: 8px; margin-top: 5px; accent-color: var(--teal); }
 .v2-actions .button[aria-pressed="true"]:disabled { opacity: 1; background: #e5f3ef; border-color: #8fbfb4; color: #174b43; }
-.v2-outcome { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; padding: 0; list-style: none; }
-.v2-outcome li { flex: 1 1 118px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: .8rem; }
-.v2-outcome li[data-done="true"] { background: #eaf5f1; color: #174b43; }
-.v2-outcome strong { display: flex; align-items: center; gap: 4px; }
-.v2-outcome li > span { display: block; color: var(--muted); margin-top: 3px; }
 .v2-pay { margin-top: 10px; }
-.v2-limitations, .v2-takeaway { margin-top: 8px; color: var(--muted); font-size: .83rem; }
+.v2-limitations { margin-top: 8px; color: var(--muted); font-size: .83rem; }
+
+.mission-reset { margin-left: auto; }
+.mission-next { color: var(--navy); }
+.mission-trackers { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 10px; }
+.mission-tracker { min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.mission-tracker header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 8px; }
+.mission-tracker h2 { font-size: .9rem; }
+.mission-tracker header > span, .mission-node-detail { color: var(--muted); font-size: .69rem; }
+.mission-money, .mission-goods { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mission-money { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mission-goods { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.mission-money-node, .mission-goods-node { position: relative; min-width: 0; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: #f7f9f9; }
+.mission-tracker [data-active="true"] { color: #174b43; background: #e5f3ef; border-color: #9fc9bf; }
+.mission-money-node dt, .mission-goods-node > strong { display: flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 700; }
+.mission-money-node dt svg, .mission-goods-node > strong svg { flex: 0 0 auto; color: var(--teal); }
+.mission-money-node dd strong, .mission-stock b { display: inline-block; font-size: 1.42rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.mission-money-node dd small { font-size: .65rem; font-weight: 700; }
+.mission-money-node progress, .mission-vote-meter { display: block; width: 100%; height: 5px; margin-top: 5px; accent-color: var(--teal); }
+.v2-item[data-winner="true"] { background: #e5f3ef; border-color: #8fbfb4; }
+.mission-stock { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; }
+.mission-kit-icons { display: flex; flex-wrap: wrap; gap: 2px; color: var(--teal); }
+.mission-goods-arrow { position: absolute; top: 48%; left: calc(100% + 1px); color: #528276; }
+.mission-action-result { min-height: 1.25em; color: #31574e; font-size: .82rem; }
+.mission-money[data-settled="true"] .mission-money-node:first-child { border-style: dashed; }
+.mission-transfers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
+.mission-transfers span { display: flex; align-items: center; gap: 4px; padding: 4px 5px; border-radius: 5px; color: var(--teal); background: #e5f3ef; font-size: .72rem; font-weight: 700; }
+.mission-transfers svg { flex: 0 0 auto; }
+@media (prefers-reduced-motion: no-preference) {
+  .mission-tracker [data-active] { transition: background-color .3s, border-color .3s; }
+  .mission-arrival, .mission-goods-node[data-active="true"] .mission-stock { animation: mission-arrival .4s ease-out; }
+}
+@keyframes mission-arrival {
+  from { opacity: .4; transform: translateX(-5px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (max-width: 900px) {
+  .mission-trackers { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .mission-goods-node > strong, .mission-money-node dt { flex-wrap: wrap; }
+}

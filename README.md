@@ -110,7 +110,7 @@ Open the URL printed by Vite. **Guided Demo** opens with the donor-governed V2 s
 4. **32–46 s · Distribute.** Redeem the three sample vouchers and simulate the issuer’s aggregate attestation.
 5. **46–60 s · Settle and audit.** Simulate settlement, then show the confirmed 7 + 3 USDC transaction in the separate completed Testnet campaign.
 
-**Reset demo** clears only the V2 sample on this browser. For an offline rehearsal, build and preview the production app on HTTPS or localhost:
+**Start new demo** and **Reset demo** clear the V2 sample and return the three kits to the supplier. **Resume saved demo** restores local progress. The money and kit trackers show the same sample state on every step. Going back does not undo actions. For an offline rehearsal, build and preview the production app on HTTPS or localhost:
 
 ```sh
 npm --prefix web run build

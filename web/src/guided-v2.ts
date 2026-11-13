@@ -39,7 +39,16 @@ export function summarize(state: State) {
   const dispatched = state.field.delivery?.quantity ?? 0
   const received = state.field.delivery?.receipt?.quantity ?? 0
   const distributed = state.field.redemptions.length
-  return { total, tallies, dispatched, received, distributed, remaining: received - distributed }
+  const balances = state.settled
+    ? { contract: 0, supplier: supplierAmount, shop: shopAmount }
+    : { contract: total, supplier: 0, shop: 0 }
+  const inventory = {
+    supplier: quantity - dispatched,
+    transit: dispatched - received,
+    shop: received - distributed,
+    families: distributed,
+  }
+  return { total, tallies, dispatched, received, distributed, balances, inventory }
 }
 
 export function update(state: State, action: Action, at: string): { state: State; message: string } {
@@ -51,7 +60,7 @@ export function update(state: State, action: Action, at: string): { state: State
       if (state.deposits[action.donor]) return unchanged('This donor has already contributed.')
       const deposits: State['deposits'] = [...state.deposits]
       deposits[action.donor] = true
-      return done({ deposits }, 'Sample contribution recorded.')
+      return done({ deposits }, `+${donors[action.donor]} USDC to the relief contract.`)
     }
     case 'vote': {
       if (total !== target || state.winner !== null || state.votes[action.donor] !== null) {
@@ -59,32 +68,32 @@ export function update(state: State, action: Action, at: string): { state: State
       }
       const votes: State['votes'] = [...state.votes]
       votes[action.donor] = action.proposal
-      return done({ votes }, 'Sample vote recorded.')
+      return done({ votes }, `+${donors[action.donor]} vote weight for ${proposals[action.proposal]}.`)
     }
     case 'approve': {
       if (state.winner !== null) return unchanged('The sample order is already approved.')
       const winner = tallies.findIndex((weight) => weight > target / 2)
       if (total !== target || (winner !== 0 && winner !== 1)) return unchanged('A proposal needs more than half the funded pool.')
-      return done({ winner }, `${proposals[winner]} approved for the sample order.`)
+      return done({ winner }, `${proposals[winner]} wins with ${tallies[winner]} of ${target} vote weight.`)
     }
     case 'dispatch': {
       if (state.winner === null) return unchanged('Approve a proposal before dispatch.')
       const result = recordDelivery(state.field, orderId, quantity, quantity, at)
-      return result.ok ? done({ field: result.state }, 'Sample supplier dispatch recorded.') : unchanged(result.message)
+      return result.ok ? done({ field: result.state }, `${quantity} kits moved from Supplier to In Transit.`) : unchanged(result.message)
     }
     case 'receive': {
       const result = confirmReceipt(state.field, orderId, quantity, at)
-      return result.ok ? done({ field: result.state }, 'Sample shop receipt recorded.') : unchanged(result.message)
+      return result.ok ? done({ field: result.state }, `${quantity} kits moved from In Transit to Local Shop.`) : unchanged(result.message)
     }
     case 'redeem': {
       const result = redeem(state.field, orderId, vouchers, action.code, at)
-      return result.ok ? done({ field: result.state }, result.message) : unchanged(result.message)
+      return result.ok ? done({ field: result.state }, `${action.code.trim().toUpperCase()} redeemed. 1 kit moved to Families.`) : unchanged(result.message)
     }
     case 'attest':
       if (distributed !== quantity || state.attested) return unchanged('Attestation requires three redeemed sample vouchers and can only be recorded once.')
-      return done({ attested: true }, 'Sample issuer attestation recorded.')
+      return done({ attested: true }, `Issuer confirmed ${distributed} kits in the sample. Funds are still held.`)
     case 'settle':
       if (!state.attested || state.settled) return unchanged('Settlement requires an issuer attestation and can only be recorded once.')
-      return done({ settled: true }, 'Sample settlement recorded. No USDC moved.')
+      return done({ settled: true }, `Sample paid ${supplierAmount} USDC to Supplier and ${shopAmount} USDC to Local Shop together.`)
   }
 }
