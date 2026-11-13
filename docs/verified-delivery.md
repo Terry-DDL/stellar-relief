@@ -1,6 +1,6 @@
 # Verified delivery settlement
 
-The recorded Testnet batch in the Guided Demo is historical. Use a new contract instance for the signed workflow. Both instances use batch ID `1`, so the contract ID distinguishes them. The new flow uses the existing contract and can pay 7 USDC to the supplier and 3 USDC to the shop for a 10 USDC Testnet order.
+The archived V1 Testnet batch is under **Historical escrow**. Use a new V1 contract instance for the signed workflow. Both instances use batch ID `1`, so the contract ID distinguishes them. This flow can pay 7 USDC to the supplier and 3 USDC to the shop for a 10 USDC Testnet order. It does not target the V2 donor-pool contract.
 
 ## Before the demonstration
 
@@ -33,7 +33,7 @@ python3 testnet_e2e.py --check-accounts --amount 10
 
    For a multi-machine demo, copy the public run checkpoint to the same run directory on each participant's machine. Exchange `delivery.json` and `receipt.json` only. The receiver can also point to these files with `--delivery` and `--receipt`. Use the aliases configured locally for your own identity and keep your seed on your machine. A single machine with all the keys demonstrates signature separation, with operational separation depending on key custody.
 
-3. In **Guided Demo**, select **Review signed Testnet order** and import `target/verified-order.json`. The same review panel is available below the existing role views. Confirm the supplier and shop addresses and IDs, then select **Check this order on Testnet**. The browser checks the current contract state and confirms the funding receipt separately from checking the signatures. It has no signing or payment controls.
+3. In the historical **Verification** view, open **Verified delivery · separate Testnet order** and import `target/verified-order.json`. Confirm the supplier and shop addresses and IDs, then select **Check this order on Testnet**. The browser checks the current contract state and confirms the funding receipt separately from checking the signatures. It has no signing or payment controls.
 
 4. The verifier reviews the evidence and physical delivery process, then explicitly approves a real Testnet settlement by passing the exact `approveDigest` printed by `review`. The tool checks that the order is still funded, validates the expected invocation, signs with the designated verifier, and records the transaction hash before sending. It signs a separate approval binding the evidence digest to that exact transaction hash.
 

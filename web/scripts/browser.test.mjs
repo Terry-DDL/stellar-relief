@@ -5,6 +5,7 @@ import { once } from 'node:events'
 import { chromium } from 'playwright-core'
 
 const evidence = JSON.parse(readFileSync(new URL('../src/evidence.json', import.meta.url)))
+const v2Evidence = JSON.parse(readFileSync(new URL('../src/v2-evidence.json', import.meta.url)))
 const dist = new URL('../dist/', import.meta.url)
 const mime = { html: 'text/html', js: 'application/javascript', css: 'text/css' }
 const probePath = '/__test__/network'
@@ -40,7 +41,9 @@ await once(server, 'listening')
 const origin = `http://127.0.0.1:${server.address().port}`
 let browser
 try {
-  browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true })
+  const executablePath = process.env.CHROMIUM_PATH
+  browser = await chromium.launch({ ...(executablePath ? { executablePath } : { channel: 'chrome' }),
+    chromiumSandbox: true })
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   const errors = []
@@ -98,52 +101,87 @@ try {
     }
   }
 
-  await heading("Emergency supplies shouldn't wait for payment trust.")
-  await visible('Coastal Flood Relief')
-  await button('Review signed Testnet order').click()
-  const verifiedOrder = page.getByRole('region', { name: 'Verified delivery · separate Testnet order' })
-  assert.ok(await verifiedOrder.getByRole('heading').evaluate((heading) => document.activeElement === heading))
-  await verifiedOrder.getByLabel('Order export').setInputFiles({
-    name: 'invalid-order.json', mimeType: 'application/json', buffer: Buffer.from('{}'),
-  })
-  await verifiedOrder.getByRole('alert').getByText('Invalid order bundle.').waitFor()
-  assert.equal(await verifiedOrder.getByRole('button', { name: 'Check this order on Testnet' }).count(), 0)
-  await visible('Fictional relief scenario')
-  await heading('Procurement Order #001')
-  const campaignFlow = page.getByRole('region', { name: 'From funding to distribution' })
-  assert.equal(await campaignFlow.getByRole('listitem').count(), 5)
-  for (const [stage, label] of [
-    ['Funding sources', 'Local donor demo'],
-    ['NGO procurement', 'Demo scenario'],
-    ['Stellar escrow', 'Real Testnet'],
-    ['Delivery & settlement', 'Local demo'],
-    ['Community distribution', 'Local demo'],
-  ]) {
-    const node = campaignFlow.getByRole('listitem').filter({ has: page.getByRole('heading', { name: stage, exact: true }) })
-    assert.ok(await node.getByText(label, { exact: true }).isVisible(), `Missing evidence label for ${stage}`)
-  }
-  assert.equal(await campaignFlow.getByRole('link', { name: 'Funding proof' }).getAttribute('href'), evidence.transactions.fund.url)
-  assert.equal(await campaignFlow.getByRole('link', { name: 'Atomic settlement proof' }).getAttribute('href'), evidence.transactions.settle.url)
-  await button('Start Guided Demo').click()
-  await heading('People around the world contribute')
-  await page.getByLabel('Target donation in USDC').fill('12.50')
-  await button('Simulate USDC contribution').click()
-  await visible('12.50 USDC')
-  await button('Next step').click()
-  await heading('NGO secures funding')
-  await button('Review supplier proof').click()
-  await heading('Supplier verifies before dispatch')
-  await heading('What suppliers can verify')
-  await visible('Verifiable payment commitments reduce uncertainty about whether the buyer has secured funds before dispatch.')
-  await visible('Recorded Settled')
-  await visible('Current USDC escrow balance is outside this check.')
-  await button('Previous step').click()
-  await heading('NGO secures funding')
-  const funding = page.getByRole('link', { name: 'View funding transaction' })
-  assert.equal(await funding.getAttribute('href'), evidence.transactions.fund.url)
+  await heading('From global donations to accountable local relief.')
   assert.equal(await nav.getByRole('link', { name: 'Guided Demo' }).getAttribute('aria-current'), 'page')
-  await nav.getByRole('link', { name: 'Agency', exact: true }).click()
-  await heading('Agency overview')
+  assert.equal(await nav.getByRole('link', { name: /donor-governed|^agency$/i }).count(), 0)
+  assert.equal(await page.getByText(/NGO secures funding|Emergency supplies shouldn't wait/).count(), 0)
+  const steps = page.getByRole('navigation', { name: 'Guided Demo steps' })
+  assert.deepEqual(await steps.getByRole('button').allTextContents(), ['1Donate', '2Vote', '3Dispatch', '4Receive', '5Distribute', '6Settle & Audit'])
+  await button('Start Guided Demo').click()
+  await heading('Global donors fund local relief')
+  assert.equal(await page.getByRole('link', { name: 'Long-running funding campaign' }).getAttribute('href'), v2Evidence.contractUrl)
+  assert.match(await page.getByRole('link', { name: 'Donor A deposit' }).getAttribute('href'), /0e6d18fe321bbb6beca1465cabb51580fafbb8e5a5d4df31e915df13e23f2fda$/)
+  await button('Next step').click()
+  await heading('Donors decide where relief goes')
+  assert.ok(await button('Donor A: Coastal').isDisabled())
+  await button('Previous step').click()
+  await heading('Global donors fund local relief')
+  await button('Simulate 6 USDC contribution').click()
+  await button('Donor A contributed').waitFor()
+  assert.ok(await button('Donor A contributed').isDisabled())
+  await button('Simulate 4 USDC contribution').click()
+  await visible('10 of 10 USDC')
+  await button('Next step').click()
+  await button('Donor A: Coastal').click()
+  assert.ok(await button('Donor A: Mountain').isDisabled())
+  await button('Donor B: Mountain').click()
+  await button('Approve sample order').click()
+  await page.getByText('Coastal Flood Relief · Procurement Order #001', { exact: true }).waitFor()
+  assert.match(await page.getByRole('link', { name: 'Donor B vote' }).getAttribute('href'), /4b4df4d12cb2880cd1c348802959cfb2671e6a9885a7d118f50311ea5c2ba3f5$/)
+  await steps.getByRole('button', { name: 'Receive' }).click()
+  assert.ok(await button('Simulate receipt of 3 kits').isDisabled())
+  await button('Previous step').click()
+  await heading('Suppliers can verify committed funding')
+  await button('Simulate dispatch of 3 kits').click()
+  await button('3 kits dispatched in the sample').waitFor()
+  await button('Next step').click()
+  await heading('Local shops confirm delivery')
+  await button('Simulate receipt of 3 kits').click()
+  await button('3 kits received in the sample').waitFor()
+  await button('Next step').click()
+  await heading('Families collect supplies locally')
+  await page.getByText(/App cached for offline reopening/).waitFor()
+  phase = 'V2 offline reload'
+  offline = true
+  await context.setOffline(true)
+  await reloadOffline()
+  await heading('Families collect supplies locally')
+  await visible('Browser offline')
+  await button('Redeem VR-001').click()
+  await visible('VR-001 recorded on this browser.')
+  await reloadOffline()
+  assert.ok(await button('VR-001 redeemed').isDisabled())
+  await page.getByLabel('Sample voucher code').fill(' vr-001 ')
+  await button('Record sample voucher').click()
+  await visible('VR-001 was already redeemed on this browser.')
+  await button('Redeem VR-002').click()
+  await button('Redeem VR-003').click()
+  await button('Next step').click()
+  await heading('Transparent settlement on Stellar')
+  assert.ok(await button('Simulate 7 + 3 USDC settlement').isDisabled())
+  await button('Previous step').click()
+  await button('Simulate issuer attestation').click()
+  await button('Next step').click()
+  await button('Simulate 7 + 3 USDC settlement').click()
+  await visible('Sample settlement recorded. No USDC moved.')
+  assert.ok(await button('Sample settlement complete').isDisabled())
+  await heading('Separate completed Testnet campaign')
+  await visible('Recorded Testnet transaction')
+  assert.equal(await page.getByRole('link', { name: 'View confirmed V2 settlement' }).getAttribute('href'), v2Evidence.demoSettlementTx)
+  assert.equal(await page.getByRole('link', { name: 'View short-duration contract' }).getAttribute('href'), v2Evidence.demoContractUrl)
+  assert.notEqual(v2Evidence.demoContractUrl, v2Evidence.contractUrl)
+  await button('Restart walkthrough').click()
+  await heading('Global donors fund local relief')
+  await visible('0 of 10 USDC')
+  await button('Simulate 6 USDC contribution').click()
+  await button('Reset demo').click()
+  await visible('0 of 10 USDC')
+  await context.setOffline(false)
+  offline = false
+  phase = 'legacy V1 review'
+  console.log('PASS six-step V2 flow, offline reload, duplicate rejection, recorded evidence and restart')
+  await nav.getByRole('link', { name: 'Historical escrow', exact: true }).click()
+  await heading('Historical V1 escrow')
   await visible('Batch 001 · Settled (recorded)')
   for (const link of [evidence.contractUrl, evidence.transactions.fund.url, evidence.transactions.settle.url]) {
     assert.ok(await page.locator(`a[href="${link}"]`).count(), `Missing explorer link ${link}`)
@@ -208,7 +246,7 @@ try {
 
   phase = 'offline navigation'
   for (const [role, title] of [
-    ['Agency', 'Agency overview'],
+    ['Historical escrow', 'Historical V1 escrow'],
     ['Supplier', 'Supplier workspace'],
     ['Verification', 'Verification & settlement'],
     ['Local Shop', 'Voucher redemption'],
@@ -257,6 +295,12 @@ try {
   await visible('Supplier · Recorded delivery of 3 kits')
   await visible('Local Shop · Confirmed receipt of 3 kits')
   await visible('Local Shop · Redeemed BR-1-01')
+  const verifiedOrder = page.getByRole('region', { name: 'Verified delivery · separate Testnet order' })
+  await verifiedOrder.getByLabel('Order export').setInputFiles({
+    name: 'invalid-order.json', mimeType: 'application/json', buffer: Buffer.from('{}'),
+  })
+  await verifiedOrder.getByRole('alert').getByText('Invalid order bundle.').waitFor()
+  assert.equal(await verifiedOrder.getByRole('button', { name: 'Check this order on Testnet' }).count(), 0)
   const rpc = 'https://soroban-testnet.stellar.org'
   await context.route(rpc + '/', async (route) => {
     const headers = {
@@ -280,55 +324,9 @@ try {
   await visible('Browser online')
   await visible('Batch 001 · Settled (recorded)')
 
-  await nav.getByRole('link', { name: 'Guided Demo' }).click()
-  await heading('People around the world contribute')
-  assert.ok(await button('Previous step').isDisabled())
-  await button('Next step').click()
-  await heading('NGO secures funding')
-  await button('Next step').click()
-  await heading('Supplier verifies before dispatch')
-  await button('Verify on Stellar Testnet').click()
-  await page.getByText(/Verification unavailable/).waitFor()
-  await button('Previous step').click()
-  await heading('NGO secures funding')
-  await button('Next step').click()
-  await button('Next step').click()
-  await heading('Goods delivered & vouchers redeemed')
-  await button('Run sample delivery demo').click()
-  await visible('Supplier recorded 3 kits. Shop receipt confirmed.')
-  await visible('Shop confirmed 3 kits.')
-  await visible('1 of 3 redeemed')
-  await button('Run sample delivery demo').click()
-  await visible('Sample delivery is already complete on this browser.')
-  await visible('1 of 3 redeemed')
-  await button('Reset demo').click()
-  await visible('0 of 3 redeemed')
-  await visible('Waiting for the supplier delivery record.')
-  assert.equal(await page.getByText('Sample delivery is already complete on this browser.', { exact: true }).count(), 0)
-  await page.getByLabel('Quantity delivered').fill('3')
-  await button('Record demo delivery').click()
-  await page.getByLabel('Quantity received').fill('2')
-  await button('Confirm demo receipt').click()
-  await visible('Received quantity must match the supplier record.')
-  await page.getByLabel('Quantity received').fill('3')
-  await button('Confirm demo receipt').click()
-  await button('Use sample voucher').click()
-  await button('Record redemption').click()
-  await visible('BR-1-01 recorded on this browser.')
-  await button('Use sample voucher').click()
-  await button('Record redemption').click()
-  await visible('BR-1-01 was already redeemed on this browser.')
-  await button('Next step').click()
-  await heading('Settlement verified')
-  const settlement = page.getByRole('link', { name: 'View settlement transaction' })
-  assert.equal(await settlement.getAttribute('href'), evidence.transactions.settle.url)
-  await button('Restart walkthrough').click()
-  await heading('People around the world contribute')
-  console.log('PASS default Guided Demo, five steps, donor simulation, live check, receipt and voucher safeguards, settlement link')
-
   for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    for (const role of ['Guided Demo', 'Agency', 'Supplier', 'Local Shop', 'Verification']) {
+    for (const role of ['Guided Demo', 'Historical escrow', 'Supplier', 'Local Shop', 'Verification']) {
       await nav.getByRole('link', { name: role, exact: true }).click()
       await nav.locator('a[aria-current=page]').getByText(role, { exact: true }).waitFor()
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${role} overflows at ${width}px`)

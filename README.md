@@ -10,7 +10,9 @@ The web app continues to open the existing Guided Demo. The V1 escrow and signed
 
 ## Project Overview
 
-Stellar Relief is a humanitarian logistics prototype. An aid agency secures relief funds in a Stellar escrow before a supplier ships goods. The supplier can verify the committed funds. Families collect goods at a local shop using offline vouchers, and an authorized verifier can release the supplier payment and shop fee in a single USDC settlement.
+Stellar Relief is a donor-governed humanitarian payment prototype. Donors contribute USDC to a Soroban pool and vote on a relief procurement proposal. The contract holds the funds while the supplier, shop, and distribution issuer authorize their respective declarations. The current V2 contract pays the supplier and shop together after full distribution attestation. A refund deadline can still displace payment after accepted delivery.
+
+The Guided Demo illustrates V2 using browser-local interactions and links to separate recorded Testnet campaigns. The architecture and escrow tools documented below describe the archived V1 prototype.
 
 ## The Problem
 
@@ -20,7 +22,7 @@ Local suppliers can face delays between accepting a relief order and getting pai
 
 The agency funds the batch upfront and records who is authorized to verify it. A supplier can inspect the deposit before shipping. The shop can record aid collection during an outage and reconcile its records after reconnecting. The current contract enforces the payment terms. The browser demo illustrates the field operations.
 
-## How It Works
+## How the historical V1 escrow works
 
 1. The agency funds a batch and registers the supplier, shop, verifier, and payout amounts.
 2. The supplier verifies the escrow and records a batch delivery in the demo. The shop independently enters and confirms the received quantity.
@@ -36,7 +38,7 @@ Stellar gives agencies and suppliers a shared transaction record they can inspec
 ## Key Features
 
 - USDC escrow with agency funding authorization, verifier-only settlement, quantity validation, and duplicate-settlement protection.
-- Agency, Supplier, Local Shop, and Verification views.
+- Historical escrow, Supplier, Local Shop, and Verification tools for V1.
 - Separate supplier and shop actions with a batch-scoped audit timeline and redemption count.
 - A production service worker caches the app for offline reopening after an initial online visit. The three paper vouchers support offline entry, reload persistence, duplicate rejection, and simulated reconciliation.
 - Read-only Testnet lookup that compares live contract state with the recorded run.
@@ -98,25 +100,24 @@ npm --prefix web ci
 npm --prefix web run dev -- --host 127.0.0.1
 ```
 
-Open the local URL printed by Vite. **Guided Demo** opens by default with Coastal Flood Relief, a fictional campaign tied to Procurement Order #001 and the recorded Stellar Testnet batch. Its first step lets you simulate contributions from donors using local currency through a provider or an existing USDC wallet. This browser-local donor pool is separate from the recorded Testnet escrow deposit; no fiat conversion or donor transaction occurs. The Agency, Supplier, Local Shop, and Verification views remain available in the navigation. Historical Replay is under **Agency**. The web demo requires no wallet or environment variables.
+Open the URL printed by Vite. **Guided Demo** opens with the donor-governed V2 sample. Donations, votes, fulfillment, vouchers, and settlement controls use browser-local sample data. Explorer links point to recorded Testnet evidence from two separate campaigns. V1 escrow, supplier, voucher, and verification tools remain under **Historical V1 tools**.
 
 ### 60-second guided demo
 
-1. **0–10 s · Show the donor entry point.** Select a local payment currency and simulate a USDC contribution. Explain that a production integration would obtain an actual quote from an eligible provider and send USDC to a campaign wallet. The sample donor pool is local to this browser.
-2. **10–30 s · Check before dispatch.** Show Order #001: the recorded 10 USDC escrow deposit is split into 7 USDC for the supplier and 3 USDC for the shop. Open **Review supplier proof**. Show the supplier address, verifier, and funding transaction. Select **Verify on Stellar Testnet** to check the live contract and batch fields. The recorded order has already settled, and the RPC check does not read the current escrow token balance.
-3. **30–50 s · Demonstrate field operations.** Click **Run sample delivery demo** to record three kits, confirm receipt, and redeem one voucher on this browser. Click it again to show that the existing redemption is retained. The manual controls remain available for demonstrating a quantity mismatch or duplicate redemption.
-4. **50–60 s · Show settlement.** Open the confirmed transaction that paid both recipients together. The browser demo actions have no effect on that transaction.
+1. **0–10 s · Donate.** Simulate the 6 and 4 USDC contributions to fill the sample pool.
+2. **10–20 s · Vote.** Give Donor A’s six votes to Coastal and Donor B’s four votes to Mountain, then approve the sample order.
+3. **20–32 s · Dispatch and receive.** Show the 7/3 USDC allocations. Record three kits dispatched, then confirm the shop receipt.
+4. **32–46 s · Distribute.** Redeem the three sample vouchers and simulate the issuer’s aggregate attestation.
+5. **46–60 s · Settle and audit.** Simulate settlement, then show the confirmed 7 + 3 USDC transaction in the separate completed Testnet campaign.
 
-Use **Reset demo** in the delivery stage or Local Shop to clear this browser's field records before presenting again.
-
-To try offline reopening, use the production build on HTTPS or localhost:
+**Reset demo** clears only the V2 sample on this browser. For an offline rehearsal, build and preview the production app on HTTPS or localhost:
 
 ```sh
 npm --prefix web run build
 npm --prefix web run preview -- --host 127.0.0.1
 ```
 
-Open the app online and wait for the delivery stage or **Local Shop** to report that it is cached. Then disconnect and reload. Reconnect to use **Verify on Stellar Testnet** in the supplier stage, **Supplier**, or **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
+Open the app online and wait for **Distribute** to report that it is cached. Disconnect and reload. Sample voucher redemptions persist on the device. Reconnect to use the read-only V1 chain check under **Supplier** or **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
 
 ```sh
 node --disable-warning=ExperimentalWarning --experimental-strip-types web/scripts/verify-testnet.mjs
@@ -126,7 +127,7 @@ See the [evidence and offline technical notes](docs/evidence-offline.md) for the
 
 ## Verified delivery settlement
 
-The [verified delivery walkthrough](docs/verified-delivery.md) uses a separate Testnet order. The supplier and shop sign independent records, and the designated verifier explicitly authorizes the payment. The verifier’s signed approval links the evidence digest to the exact Testnet transaction hash. Import the public order export into the Guided Demo or a role view to verify the evidence and check the ledger outcome.
+The [verified delivery walkthrough](docs/verified-delivery.md) uses a separate Testnet order. The supplier and shop sign independent records, and the designated verifier explicitly authorizes the payment. The verifier’s signed approval links the evidence digest to the exact Testnet transaction hash. Import the public order export in the historical **Verification** view to verify the evidence and check the ledger outcome.
 
 The original settled order remains available as historical evidence. The smart contract enforces verifier authorization and quantity. Delivery evidence is verified off-chain, and voucher redemption remains local.
 

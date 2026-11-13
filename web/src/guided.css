@@ -253,3 +253,29 @@
 .verified-order-details .timeline li > small { display: block; }
 .verified-order-details .button { justify-self: start; }
 .verified-order-details .evidence-link { display: inline; }
+
+.v2-steps { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.v2-hero-pool { margin: 12px 0; }
+.v2-hero-pool progress { display: block; width: 100%; height: 8px; accent-color: #9ce1d2; }
+.v2-donor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.v2-item { display: grid; align-content: start; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; }
+.v2-item > span, .v2-total { color: var(--muted); font-size: .88rem; }
+.v2-total { margin: 10px 0; }
+.v2-item > .button, .v2-actions > .button, .v2-voucher-entry > .button { margin: 0; }
+.v2-proof, .v2-actions, .v2-voucher-entry, .v2-demo-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.v2-proof { margin-top: 14px; font-size: .82rem; }
+.v2-facts, .v2-voucher-entry { margin: 10px 0; }
+.v2-voucher-entry { align-items: end; }
+.v2-voucher-entry label { display: grid; gap: 4px; color: var(--muted); font-size: .8rem; }
+.v2-voucher-entry input { width: min(100%, 13rem); min-height: 38px; padding: 7px 10px; border: 1px solid #aebfc9; border-radius: 8px; }
+.v2-demo-footer { justify-content: space-between; color: var(--muted); font-size: .82rem; }
+@media (max-width: 1120px) {
+  .v2-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .v2-steps button:last-child { grid-column: auto; }
+}
+@media (max-width: 490px) {
+  .v2-donor-grid { grid-template-columns: 1fr; }
+  .v2-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
