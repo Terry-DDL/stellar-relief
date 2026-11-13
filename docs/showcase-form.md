@@ -1,5 +1,7 @@
 # Project Showcase form — shared copy
 
+> Historical V1 draft. The [current V2 showcase pack](showcase-v2-pitch.md) describes the donor-governed Testnet contract and should be used for the November 16 pitch.
+
 This mirrors the current draft in the organizer's Airtable form so the team can review the same text. The Airtable form has **not** been submitted yet. The team name and Devpost URL must be added before submission.
 
 ## Team topic and number
