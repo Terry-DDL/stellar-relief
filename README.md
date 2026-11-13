@@ -2,6 +2,12 @@
 
 **Pre-funded Relief Supply with Offline Voucher Distribution**
 
+## Donor-governed V2
+
+V2 is the intended product direction. Donors contribute directly to a Soroban pool and vote on relief procurement without handing custody to an NGO. The separate [V2 contract](contracts/donor_pool) and [technical notes](docs/donor-governed-v2.md) document the two recorded Testnet campaigns, authorization model, and refund release blocker. The current V2 prototype releases both payments together after the issuer attests full distribution. Separate supplier and shop payouts remain future work.
+
+The web app continues to open the existing Guided Demo. The V1 escrow and signed-delivery tooling below remain available as historical and technical references. The imported V2 frontend is reserved for a later UI migration.
+
 ## Project Overview
 
 Stellar Relief is a humanitarian logistics prototype. An aid agency secures relief funds in a Stellar escrow before a supplier ships goods. The supplier can verify the committed funds. Families collect goods at a local shop using offline vouchers, and an authorized verifier can release the supplier payment and shop fee in a single USDC settlement.
