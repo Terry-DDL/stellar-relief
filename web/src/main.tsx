@@ -6,6 +6,7 @@ import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, reconcile, r
 import type { Demo, Role } from './demo'
 import { useConnectivity } from './connectivity'
 import { verifyTestnet } from './testnet'
+import { VerifiedDelivery } from './verified-delivery'
 import './styles.css'
 import './guided.css'
 
@@ -453,6 +454,9 @@ function GuidedDemo(props: FieldProps) {
         <div className="hero-actions">
           <button type="button" className="button hero-button" onClick={() => goToStep(0)}>Start Guided Demo <Icon name="arrow" size={16} /></button>
           <button type="button" className="button hero-shortcut" onClick={() => goToStep(2)}>Review supplier proof</button>
+          <button type="button" className="button hero-shortcut" onClick={() => {
+            document.getElementById('verified-order-title')?.focus()
+          }}>Review signed Testnet order</button>
         </div>
       </div>
       <div className="hero-order">
@@ -626,6 +630,7 @@ function App() {
         {role === 'wholesaler' && <Supplier demo={demo} apply={apply} online={online} />}
         {role === 'shop' && <Shop demo={demo} apply={apply} reset={reset} online={online} cached={cached} />}
         {role === 'verifier' && <Verification demo={demo} online={online} />}
+        <VerifiedDelivery online={online} />
         <footer><span>Stellar Relief · Testnet demonstration</span><Link href={`https://stellar.expert/explorer/testnet/contract/${asset.sac}`}>USDC asset contract</Link></footer>
       </main>
     </div>

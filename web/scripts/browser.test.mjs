@@ -100,6 +100,14 @@ try {
 
   await heading("Emergency supplies shouldn't wait for payment trust.")
   await visible('Coastal Flood Relief')
+  await button('Review signed Testnet order').click()
+  const verifiedOrder = page.getByRole('region', { name: 'Verified delivery · separate Testnet order' })
+  assert.ok(await verifiedOrder.getByRole('heading').evaluate((heading) => document.activeElement === heading))
+  await verifiedOrder.getByLabel('Order export').setInputFiles({
+    name: 'invalid-order.json', mimeType: 'application/json', buffer: Buffer.from('{}'),
+  })
+  await verifiedOrder.getByRole('alert').getByText('Invalid order bundle.').waitFor()
+  assert.equal(await verifiedOrder.getByRole('button', { name: 'Check this order on Testnet' }).count(), 0)
   await visible('Fictional relief scenario')
   await heading('Procurement Order #001')
   const campaignFlow = page.getByRole('region', { name: 'From funding to distribution' })

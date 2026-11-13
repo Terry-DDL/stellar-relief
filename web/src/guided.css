@@ -248,3 +248,8 @@
   .payment-node.escrow-node { grid-column: 1 / -1; min-height: 85px; }
   .payment-node { min-height: 91px; padding: 10px; }
 }
+
+.verified-order-details { display: grid; gap: 12px; margin-top: 16px; overflow-wrap: anywhere; }
+.verified-order-details .timeline li > small { display: block; }
+.verified-order-details .button { justify-self: start; }
+.verified-order-details .evidence-link { display: inline; }

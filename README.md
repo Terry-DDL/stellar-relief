@@ -118,6 +118,12 @@ node --disable-warning=ExperimentalWarning --experimental-strip-types web/script
 
 See the [evidence and offline technical notes](docs/evidence-offline.md) for the full walkthrough.
 
+## Verified delivery settlement
+
+The [verified delivery walkthrough](docs/verified-delivery.md) uses a separate Testnet order. The supplier and shop sign independent records, and the designated verifier explicitly authorizes the payment. The verifier’s signed approval links the evidence digest to the exact Testnet transaction hash. Import the public order export into the Guided Demo or a role view to verify the evidence and check the ledger outcome.
+
+The original settled order remains available as historical evidence. The smart contract enforces verifier authorization and quantity. Delivery evidence is verified off-chain, and voucher redemption remains local.
+
 ## Smart Contract Functions
 
 | Function | Purpose |

@@ -11,6 +11,7 @@
     "resolveJsonModule": true,
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,

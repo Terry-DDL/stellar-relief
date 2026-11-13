@@ -112,32 +112,32 @@ function expectAddress(address: string) {
   return `${kind}:${hex(addressBytes(address))}`
 }
 
-export async function verifyTestnet(evidence: Evidence, request = fetch) {
-  async function rpc(method: 'getNetwork' | 'getLedgerEntries', params: object) {
-    let response: Response
-    try {
-      response = await request(RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: method, method, params }),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(8_000),
-      })
-    } catch {
-      throw new Error('Stellar Testnet RPC could not be reached. Check connectivity, RPC availability, or browser CORS policy.')
-    }
-    if (!response.ok) throw new Error(`Stellar Testnet RPC returned HTTP ${response.status}.`)
-    const payload = await response.json()
-    if (payload?.id !== method || payload.error || !payload.result) {
-      throw new Error(`Stellar Testnet RPC did not return a valid ${method} result.`)
-    }
-    return payload.result
+export async function readTestnet(method: 'getNetwork' | 'getLedgerEntries' | 'getTransaction', params: object, request = fetch) {
+  let response: Response
+  try {
+    response = await request(RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: method, method, params }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8_000),
+    })
+  } catch {
+    throw new Error('Stellar Testnet RPC could not be reached. Check connectivity, RPC availability, or browser CORS policy.')
   }
+  if (!response.ok) throw new Error(`Stellar Testnet RPC returned HTTP ${response.status}.`)
+  const payload = await response.json()
+  if (payload?.id !== method || payload.error || !payload.result) {
+    throw new Error(`Stellar Testnet RPC did not return a valid ${method} result.`)
+  }
+  return payload.result
+}
 
-  const network = await rpc('getNetwork', {})
+export async function verifyTestnet(evidence: Evidence, request = fetch) {
+  const network = await readTestnet('getNetwork', {}, request)
   if (network.passphrase !== PASSPHRASE) throw new Error('RPC did not identify itself as Stellar Testnet.')
   const key = contractInstanceKey(evidence.contractId)
-  const result = await rpc('getLedgerEntries', { keys: [key] })
+  const result = await readTestnet('getLedgerEntries', { keys: [key] }, request)
   if (!Number.isSafeInteger(result.latestLedger) || result.latestLedger < 1 || !Array.isArray(result.entries)) {
     throw new Error('Stellar RPC did not return a valid ledger response.')
   }

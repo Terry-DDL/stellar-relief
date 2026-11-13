@@ -493,6 +493,8 @@ def is_preflight_only(folder, data):
     # creates evidence files, and submission must first persist its hash.
     empty_fields = ("addresses", "transactions", "snapshots", "checks")
     initial_keys = {"schema", "run_id", "network", "wasm_hash", "batch_id", "salt", "asset", "amount_usdc", *empty_fields}
+    if data.get("verified_delivery") is True:
+        initial_keys.add("verified_delivery")
     if data.keys() != initial_keys or any(data[field] != {} for field in empty_fields):
         return False
     if not isinstance(data["salt"], str) or not re.fullmatch(r"[0-9a-f]{64}", data["salt"]):
@@ -506,7 +508,7 @@ def is_preflight_only(folder, data):
     )
 
 
-def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False, amount_usdc=None):
+def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False, amount_usdc=None, fund_only=False):
     def save():
         write_checkpoint(folder, data)
 
@@ -555,6 +557,8 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False, a
                 "Checkpoint does not match this USDC run, Testnet, batch or WASM")
         require(amount_usdc is None or amount_usdc == data["amount_usdc"],
                 "Cannot change USDC amount when resuming")
+        require(bool(data.get("verified_delivery")) == fund_only,
+                "Verified delivery orders must resume funding with --fund-only")
         recorded = data["transactions"]
         require(isinstance(recorded, dict) and set(recorded) == set(STAGES[:len(recorded)]),
                 "Conflicting transaction stages; inspect the checkpoint manually")
@@ -565,6 +569,8 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False, a
                 "run_id": folder.name, "network": PASSPHRASE, "wasm_hash": WASM_HASH,
                 "batch_id": BATCH, "salt": uuid.uuid4().hex + uuid.uuid4().hex,
                 "addresses": {}, "transactions": {}, "snapshots": {}, "checks": {}}
+        if fund_only:
+            data["verified_delivery"] = True
         save()
 
     whole, shop = payout_units(data["amount_usdc"])
@@ -612,6 +618,10 @@ def execute(folder, chain, handoff, *, resume=False, allow_inconclusive=False, a
         expected = {**baseline, "escrow": total, "agency": baseline["agency"] - total}
         require(current["balances"] == expected, "Funding balance check failed")
         snapshots["funded"] = current
+        if fund_only:
+            save()
+            print(f"Funded. Signed delivery and verifier approval are separate steps. Run ID: {folder.name}")
+            return
         data["checks"].update(chain.negative_checks(data))
         save()
         require(all(check["status"] != "FAIL" for check in data["checks"].values()),
@@ -692,7 +702,12 @@ def main():
                         help="USDC amount (default 100 for a new run)")
     parser.add_argument("--allow-inconclusive", action="store_true",
                         help="Allow settlement after inconclusive tool checks; never bypass failed safety checks")
+    parser.add_argument("--fund-only", action="store_true", help="Stop after funding a separate verified delivery order")
+    parser.add_argument("--approve-setup", action="store_true", help="Authorize Testnet upload, deployment and funding only")
     args = parser.parse_args()
+    if args.fund_only and not args.check_accounts:
+        require(args.approve_setup, "Fund-only setup requires explicit --approve-setup")
+    require(not args.approve_setup or args.fund_only, "--approve-setup requires --fund-only")
     handoff = PROJECT / "HANDOFF.md"
     if args.check_accounts or not args.resume:
         chain = Testnet(RUN_ROOT)
@@ -711,7 +726,7 @@ def main():
     with (folder / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         execute(folder, Testnet(folder), handoff, resume=bool(args.resume),
-                allow_inconclusive=args.allow_inconclusive, amount_usdc=args.amount)
+                allow_inconclusive=args.allow_inconclusive, amount_usdc=args.amount, fund_only=args.fund_only)
 
 
 if __name__ == "__main__":
