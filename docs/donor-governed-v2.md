@@ -14,6 +14,10 @@ The [V2 contract](../contracts/donor_pool) is a separate Rust/Soroban crate. The
 
 Partial refunds are proportional to original contributions. Fractional numerators carry across successful claims, so a donor receives the floor or ceiling of their share depending on claim order. The total is distributed exactly when all donors claim. Paid shares and unpaid earned shares are excluded equally. Unclaimed amounts remain in the contract. Accounting assumes an honest configured token and excludes unsolicited transfers.
 
+## Current separate-claims Testnet evidence
+
+The latest V2 contract was deployed on Testnet on November 13, 2026. Its [new contract and transaction trail](testnet-v2-separate-claims.md) show the 6 + 4 USDC donor vote, a 7 USDC supplier claim after signed shop receipt, and a later 3 USDC shop claim after issuer attestation. The intervening pool balance was 3 USDC; after both claims it was 0 and the campaign was `Settled`. Two [exception campaigns](testnet-v2-exception-paths.md) then verified full refunds after a failed vote and partial refunds after accepted receipt and a distribution timeout; the earned 7 USDC supplier share survived both donor refunds and the deadline.
+
 ## Recorded Stellar Testnet evidence
 
 These are historical records from the fork. Contract IDs identify distinct runs, and the recorded campaign states are snapshots. This integration checked the recorded transactions through read-only Testnet queries. It did not deploy or submit any transactions.
@@ -32,7 +36,7 @@ The short campaign settled in ledger `5701421`. The transaction effects record t
 
 The earlier deployment could enable full donor refunds after accepted delivery or even full distribution if nobody called its atomic settlement before the deadline. This source release protects accepted supplier payments and fully attested shop payments by excluding those obligations from the refund pool. Tests cover expiry, partial distribution, duplicate claims, transfer rollback and refund rounding.
 
-The new proposal data layout and claim API require a new deployment. The historical instances and their refund behavior remain as recorded. No Testnet transaction in this release verifies the revised claims.
+The new proposal data layout and claim API required a new deployment, now recorded [here](testnet-v2-separate-claims.md). The historical instances and their refund behavior remain as recorded. The revised claim path and deadline-refund protection are verified by the current Testnet runs, with additional local unit coverage.
 
 Additional trust and operational boundaries:
 

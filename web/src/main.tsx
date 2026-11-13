@@ -593,10 +593,12 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
                 onClick={() => void change({ type: 'settle' })}>{sample.settled ? 'Shop paid in the sample' : 'Simulate 3 USDC shop payment'}</button>
             </div>
           </Card>
-          <Card title="Real Stellar Testnet Proof" extra={<Tag>Separate completed Testnet campaign</Tag>}>
-            <p className="card-description">The short-duration campaign paid 7 USDC to its supplier and 3 USDC to its shop in one confirmed transaction. It has its own contract and transaction history.</p>
-            <div className="v2-proof"><Link href={v2Evidence.demoSettlementTx}>View confirmed V2 settlement</Link><Link href={v2Evidence.demoContractUrl}>View short-duration contract</Link><Link href={v2Explorer + '8028310be8d9fc92348674ccfd9e494c838de216ee6137db8e52f5f85575d719'}>Recorded issuer attestation</Link></div>
-            <p className="v2-limitations"><strong>Historical evidence.</strong> This transaction used the earlier contract. The separate claims and refund protections in this release have local tests and no new Testnet deployment.</p>
+          <Card title="Real Stellar Testnet Proof" extra={<Tag>Current separate-claims contract</Tag>}>
+            <p className="card-description">The current contract received 6 + 4 test USDC and recorded a 6–4 vote. After signed shop receipt, the supplier claimed 7 USDC while 3 stayed locked. After issuer attestation, the shop claimed the remaining 3 USDC.</p>
+            <div className="v2-proof"><Link href={v2Evidence.currentContractUrl}>Inspect current contract</Link><Link href={v2Evidence.currentSupplierClaimTx}>Supplier claimed 7 USDC</Link><Link href={v2Evidence.currentIssuerAttestationTx}>Issuer attested distribution</Link><Link href={v2Evidence.currentShopClaimTx}>Shop claimed 3 USDC</Link></div>
+            <p className="card-description">Exception run: after accepted receipt and a missed distribution deadline, donors received 1.8 + 1.2 USDC in refunds. The supplier's earned 7 USDC remained reserved and was claimed after the refunds.</p>
+            <div className="v2-proof"><Link href={v2Evidence.exceptionContractUrl}>Inspect timeout campaign</Link><Link href={v2Evidence.exceptionRefundTxA}>Donor A refund · 1.8 USDC</Link><Link href={v2Evidence.exceptionRefundTxB}>Donor B refund · 1.2 USDC</Link><Link href={v2Evidence.exceptionSupplierClaimTx}>Protected supplier claim · 7 USDC</Link></div>
+            <p className="v2-limitations">These transactions demonstrate signed claims and payments for fictional actors. They do not prove physical delivery or real voucher redemption. The <Link href={v2Evidence.demoSettlementTx}>older atomic settlement</Link> belongs to the previous contract.</p>
           </Card>
         </>}
       </section>

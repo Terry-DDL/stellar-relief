@@ -47,12 +47,18 @@ npm --prefix web run test:offline
 npm --prefix web run test:browser
 ```
 
+## Verified current V2 Testnet evidence
+
+The [current separate-claims contract](https://stellar.expert/explorer/testnet/contract/CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH) ran a fresh 10 USDC campaign on Testnet. Two demo donors deposited 6 + 4 USDC and cast a 6–4 vote. After the winning order's supplier declared dispatch and the shop declared receipt, the supplier [claimed 7 USDC](https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231). The pool then held 3 USDC, and a premature shop claim failed in read-only simulation. After the issuer attested full distribution, the shop [claimed the remaining 3 USDC](https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2). Final read-only calls returned `Settled`, both paid flags true, and a zero USDC pool balance. See the [full current-contract transaction trail](docs/testnet-v2-separate-claims.md). These are fictional actors and declarations, not proof of physical delivery.
+
+Two [Testnet exception campaigns](docs/testnet-v2-exception-paths.md) verified that a failed vote refunds all 10 USDC and that, after accepted shop receipt but no distribution attestation, a timeout refunds only the unearned 3 USDC. Two donors received 1.8 and 1.2 USDC; the supplier then claimed the 7 USDC that remained reserved, even after expiry. Premature, unauthorized and duplicate operations were rejected in Testnet RPC simulations without submitting invalid transactions.
+
 ## Verified historical Testnet evidence
 
 - The [long-running campaign](https://stellar.expert/explorer/testnet/contract/CBYAGHNNIZ44E7AJQGCLTD3YMH57JFLTTA2Z3THVRO6NQB6HX4PNSC4X) recorded 6 + 4 USDC in donations and a 6–4 vote.
 - A [separate short campaign](https://stellar.expert/explorer/testnet/contract/CDLCJPEUKCNZFHHUGQI4C52KUVSRBMFX5CEQ4Y3XTX7T3WG2B4TO27ZK) executed a [confirmed atomic 7 + 3 USDC settlement](https://stellar.expert/explorer/testnet/tx/3be19fb3d887155d54c8db14ea82a05e28d1ad3333c5702cb008594c409327eb) after role attestations.
 
-Both instances used the earlier contract. The separate payment claims and deadline-refund fix in this source release are validated locally and have no new Testnet deployment. The [V2 evidence notes](docs/donor-governed-v2.md#recorded-stellar-testnet-evidence) retain all historical transaction links.
+Both instances used the earlier atomic-settlement contract. The [V2 evidence notes](docs/donor-governed-v2.md#recorded-stellar-testnet-evidence) retain all historical transaction links. The current Testnet runs above verify separate payment claims and the two deadline-refund paths.
 
 ## Limitations and future work
 

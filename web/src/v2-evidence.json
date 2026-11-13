@@ -15,5 +15,17 @@
   "demoContractId": "CDLCJPEUKCNZFHHUGQI4C52KUVSRBMFX5CEQ4Y3XTX7T3WG2B4TO27ZK",
   "demoContractUrl": "https://stellar.expert/explorer/testnet/contract/CDLCJPEUKCNZFHHUGQI4C52KUVSRBMFX5CEQ4Y3XTX7T3WG2B4TO27ZK",
   "demoPhase": "Settled",
-  "demoSettlementTx": "https://stellar.expert/explorer/testnet/tx/3be19fb3d887155d54c8db14ea82a05e28d1ad3333c5702cb008594c409327eb"
+  "demoSettlementTx": "https://stellar.expert/explorer/testnet/tx/3be19fb3d887155d54c8db14ea82a05e28d1ad3333c5702cb008594c409327eb",
+  "currentContractId": "CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH",
+  "currentContractUrl": "https://stellar.expert/explorer/testnet/contract/CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH",
+  "currentWasmHash": "b5724cdc03aff165a06ad9394e6147492248e82a908daf0ecc11923981b91a09",
+  "currentUploadTx": "https://stellar.expert/explorer/testnet/tx/15c63f7ba8bface31d355f394eec7edf064d7269f1ddbb8353e9aef108cbac9e",
+  "currentDeployTx": "https://stellar.expert/explorer/testnet/tx/285a52c9526ef749aec904fc5a46ae3dbcb1bb38ed0a87b3eab9c07cb1dd7cf2",
+  "currentSupplierClaimTx": "https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231",
+  "currentIssuerAttestationTx": "https://stellar.expert/explorer/testnet/tx/7464f47587fa12646de7fa3d58a3144592c3e5b24856ac91b566b2a1bdecac1d",
+  "currentShopClaimTx": "https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2",
+  "exceptionContractUrl": "https://stellar.expert/explorer/testnet/contract/CAXFQFAJYAPU54DCBR67LMVOJEPWGMK6OPO4UNFGPER46NKABL2WZ5RC",
+  "exceptionRefundTxA": "https://stellar.expert/explorer/testnet/tx/18433d735bc2a2c11ae2d4739da271a76959880ce6b3becdbf8402c621d1f089",
+  "exceptionRefundTxB": "https://stellar.expert/explorer/testnet/tx/6c352982419923c23de75743347e63b4941eb07c7990a2125bc6b42f4fedf560",
+  "exceptionSupplierClaimTx": "https://stellar.expert/explorer/testnet/tx/a74afdc4399c799f5b0477bed5949a6d769b8ee6b320dfadcb9cc84647d642cb"
 }
