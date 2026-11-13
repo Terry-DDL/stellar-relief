@@ -1,0 +1,36 @@
+name: Deploy V2 to Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/vercel-production.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_epjPXh1prtDfVx6nNQmM8rS0
+      VERCEL_PROJECT_ID: prj_Rpb6UmPvyC44C4KQAy9q3bMlZvVu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Vercel CLI
+        run: npm install --global vercel@65.15.0
+      - name: Deploy production site
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "VERCEL_TOKEN repository secret is missing"; exit 1; }
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN"
