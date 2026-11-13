@@ -596,6 +596,8 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
           <Card title="Real Stellar Testnet Proof" extra={<Tag>Current separate-claims contract</Tag>}>
             <p className="card-description">The current contract received 6 + 4 test USDC and recorded a 6–4 vote. After signed shop receipt, the supplier claimed 7 USDC while 3 stayed locked. After issuer attestation, the shop claimed the remaining 3 USDC.</p>
             <div className="v2-proof"><Link href={v2Evidence.currentContractUrl}>Inspect current contract</Link><Link href={v2Evidence.currentSupplierClaimTx}>Supplier claimed 7 USDC</Link><Link href={v2Evidence.currentIssuerAttestationTx}>Issuer attested distribution</Link><Link href={v2Evidence.currentShopClaimTx}>Shop claimed 3 USDC</Link></div>
+            <p className="card-description">Exception run: after accepted receipt and a missed distribution deadline, donors received 1.8 + 1.2 USDC in refunds. The supplier's earned 7 USDC remained reserved and was claimed after the refunds.</p>
+            <div className="v2-proof"><Link href={v2Evidence.exceptionContractUrl}>Inspect timeout campaign</Link><Link href={v2Evidence.exceptionRefundTxA}>Donor A refund · 1.8 USDC</Link><Link href={v2Evidence.exceptionRefundTxB}>Donor B refund · 1.2 USDC</Link><Link href={v2Evidence.exceptionSupplierClaimTx}>Protected supplier claim · 7 USDC</Link></div>
             <p className="v2-limitations">These transactions demonstrate signed claims and payments for fictional actors. They do not prove physical delivery or real voucher redemption. The <Link href={v2Evidence.demoSettlementTx}>older atomic settlement</Link> belongs to the previous contract.</p>
           </Card>
         </>}

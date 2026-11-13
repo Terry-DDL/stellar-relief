@@ -21,6 +21,7 @@ Add these as separate Devpost tags:
 2. **Current V2 Testnet contract:** https://stellar.expert/explorer/testnet/contract/CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH
 3. **Supplier's 7 USDC claim:** https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231
 4. **Shop's later 3 USDC claim:** https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2
+5. **Timeout refund and protected supplier claim:** https://github.com/Terry-DDL/stellar-relief/blob/codex/retest-current/docs/testnet-v2-exception-paths.md
 
 The local preview at `127.0.0.1:4177` works only on the developer's computer and should not be entered as a public demo URL. A public live app has not been deployed.
 

@@ -18,7 +18,9 @@ Our sample uses a fictional 10 USDC order for three kits and a **70/30 supplier/
 
 We kept our original Stellar Relief escrow demo as a reference and developed V2 first in a public fork, then integrated it into the [main repository](https://github.com/Terry-DDL/stellar-relief). The current Rust/Soroban contract handles direct USDC deposits, weighted voting, majority selection, role-authorized delivery declarations, two separate recipient claims, and proportional refunds of unearned funds. A React/TypeScript page walks through the donor, supplier, shop, issuer, and beneficiary roles. The page's buttons are local simulations; signed transactions are demonstrated separately on Stellar Testnet.
 
-On the current contract's Testnet deployment, two demo donors deposited **6 + 4 USDC** and cast a **6–4 vote**. After the vote deadline, separate demo accounts submitted the supplier and shop declarations. The supplier then [claimed 7 USDC](https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231) while 3 USDC stayed in the pool. After the issuer's distribution attestation, the shop [claimed that remaining 3 USDC](https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2). The [public source and full transaction trail](https://github.com/Terry-DDL/stellar-relief/blob/main/docs/testnet-v2-separate-claims.md) let others inspect the run.
+On the current contract's Testnet deployment, two demo donors deposited **6 + 4 USDC** and cast a **6–4 vote**. After the vote deadline, separate demo accounts submitted the supplier and shop declarations. The supplier then [claimed 7 USDC](https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231) while 3 USDC stayed in the pool. After the issuer's distribution attestation, the shop [claimed that remaining 3 USDC](https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2). The [public transaction trail](https://github.com/Terry-DDL/stellar-relief/blob/codex/retest-current/docs/testnet-v2-separate-claims.md) lets others inspect the run.
+
+We also ran [exception cases on Testnet](https://github.com/Terry-DDL/stellar-relief/blob/codex/retest-current/docs/testnet-v2-exception-paths.md). When a vote expired without a winner, both donors recovered their full deposits. In a separate campaign, the shop confirmed receipt but distribution timed out. The donors recovered only the unearned 3 USDC, split 1.8 and 1.2; the supplier's earned 7 USDC remained in the pool and was still claimable after the refunds. Premature and duplicate operations were rejected in Testnet RPC simulations without submitting invalid transactions.
 
 ## Challenges we ran into
 
@@ -30,6 +32,7 @@ Another challenge is timing: the contract cannot finalize a vote before its dead
 
 - Built a donor-governed payment path that does not place the pooled USDC in an NGO wallet.
 - Executed a full current-contract Testnet cycle: two deposits, two votes, winner selection, three role-specific declarations, and separate 7 USDC and 3 USDC claims.
+- Verified on Testnet that timeout refunds cannot consume a supplier's earned 7 USDC share, and that a failed vote returns the full pool.
 - Passed eight current-contract tests, including successful staged payment, failed-vote refunds, deadline refunds, duplicate claims, and preservation of earned payouts.
 - Preserved the historical V1 prototype while integrating V2 into the [team's main repository](https://github.com/Terry-DDL/stellar-relief).
 

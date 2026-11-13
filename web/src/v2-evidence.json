@@ -23,5 +23,9 @@
   "currentDeployTx": "https://stellar.expert/explorer/testnet/tx/285a52c9526ef749aec904fc5a46ae3dbcb1bb38ed0a87b3eab9c07cb1dd7cf2",
   "currentSupplierClaimTx": "https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231",
   "currentIssuerAttestationTx": "https://stellar.expert/explorer/testnet/tx/7464f47587fa12646de7fa3d58a3144592c3e5b24856ac91b566b2a1bdecac1d",
-  "currentShopClaimTx": "https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2"
+  "currentShopClaimTx": "https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2",
+  "exceptionContractUrl": "https://stellar.expert/explorer/testnet/contract/CAXFQFAJYAPU54DCBR67LMVOJEPWGMK6OPO4UNFGPER46NKABL2WZ5RC",
+  "exceptionRefundTxA": "https://stellar.expert/explorer/testnet/tx/18433d735bc2a2c11ae2d4739da271a76959880ce6b3becdbf8402c621d1f089",
+  "exceptionRefundTxB": "https://stellar.expert/explorer/testnet/tx/6c352982419923c23de75743347e63b4941eb07c7990a2125bc6b42f4fedf560",
+  "exceptionSupplierClaimTx": "https://stellar.expert/explorer/testnet/tx/a74afdc4399c799f5b0477bed5949a6d769b8ee6b320dfadcb9cc84647d642cb"
 }
