@@ -86,6 +86,8 @@ try {
   const heading = (name) => page.getByRole('heading', { name, exact: true }).waitFor()
   const initial = await page.goto(origin)
   assert.ok(initial?.ok() && !initial.fromServiceWorker(), 'Initial visit must load from the server')
+  await page.getByRole('heading', { name: 'Donors choose the mission. The contract holds the funds.' }).waitFor()
+  await page.getByRole('navigation', { name: 'Workspace navigation' }).getByRole('link', { name: 'Guided Demo' }).click()
   const assets = await page.locator('script[src], link[rel="stylesheet"]').evaluateAll((elements) =>
     elements.map((element) => element.src ?? element.href))
   assert.ok(assets.length >= 2, 'Production HTML must reference its script and stylesheet')

@@ -1,0 +1,39 @@
+.governance-page { display: grid; gap: 18px; }
+.governance-hero { padding: clamp(24px, 4vw, 46px); border-radius: 20px; color: #f7fcff; background: linear-gradient(115deg, #12314a, #116b60); }
+.governance-kicker { color: #b5f2e5; font-size: .73rem; font-weight: 800; letter-spacing: .11em; }
+.governance-hero h1 { max-width: 18ch; margin: 10px 0; font-size: clamp(2rem, 4.2vw, 3.6rem); line-height: 1.05; }
+.governance-hero p { max-width: 70ch; color: #d7eae9; line-height: 1.55; }
+.governance-hints { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.governance-hints span { padding: 6px 9px; border: 1px solid #d0eee766; border-radius: 999px; color: #dbf7ef; font-size: .72rem; }
+.governance-contract-link { display: inline-block; margin-top: 15px; color: #b5f2e5; font-size: .84rem; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+.governance-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.governance-metrics > div, .governance-card { min-width: 0; padding: 17px; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+.governance-metrics small, .governance-metrics strong { display: block; }
+.governance-metrics strong { margin-top: 7px; font-size: 1.18rem; line-height: 1.2; overflow-wrap: anywhere; }
+.governance-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.governance-card header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.governance-card header > span { display: grid; place-items: center; flex: 0 0 29px; height: 29px; border-radius: 8px; background: #e5f4f0; color: #116b60; font-size: .8rem; font-weight: 800; }
+.governance-card h2 { font-size: 1.05rem; }
+.governance-card p { color: var(--muted); font-size: .84rem; line-height: 1.5; }
+.governance-card button { min-height: 36px; padding: 7px 10px; border: 1px solid #97c9bc; border-radius: 8px; color: #125d52; background: #edf8f4; font-size: .8rem; font-weight: 700; }
+.governance-card button:disabled { opacity: .55; }
+.governance-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.governance-row strong, .governance-row small { display: block; }
+.governance-row strong { font-size: .85rem; }
+.governance-row small { margin-top: 3px; font-size: .76rem; }
+.governance-option { display: grid; gap: 4px; padding: 10px; margin-top: 10px; border: 1px solid var(--line); border-radius: 9px; background: #fafcfb; font-size: .82rem; }
+.governance-option span { color: #116b60; font-weight: 750; }
+.governance-option small { line-height: 1.4; }
+.governance-voter { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .8rem; }
+.governance-voter > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.governance-voter span { color: var(--teal); }
+.governance-card .governance-primary { margin-top: 12px; border-color: #116b60; background: #116b60; color: white; }
+.governance-card .governance-note { margin-top: 12px; padding: 9px 11px; border-radius: 8px; background: #fff7e9; color: #664e2f; font-size: .78rem; }
+.governance-vouchers { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.governance-audit-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 14px 0; }
+.governance-audit-grid > div { padding: 10px; border-radius: 9px; background: #edf8f4; color: #31574e; font-size: .78rem; }
+.governance-audit-grid strong { display: block; margin-top: 5px; color: #173c36; font-size: 1rem; }
+.governance-card .governance-reset { display: block; margin-top: 12px; border: 0; background: transparent; text-decoration: underline; }
+@media (max-width: 900px) { .governance-metrics, .governance-audit-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 700px) { .governance-grid { grid-template-columns: 1fr; } }
+@media (max-width: 400px) { .governance-metrics { grid-template-columns: 1fr 1fr; } .governance-row { align-items: flex-start; flex-direction: column; } }

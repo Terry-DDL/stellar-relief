@@ -13,6 +13,7 @@
 
 .brand { margin-bottom: 32px; }
 .sidebar .overview-link { margin-bottom: 26px; }
+.sidebar .overview-link:first-child { margin-bottom: 4px; }
 .sidebar .nav-caption { text-transform: uppercase; }
 .topbar > p { font-weight: 650; }
 .card { padding: clamp(16px, 2vw, 24px); }

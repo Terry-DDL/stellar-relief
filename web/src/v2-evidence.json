@@ -1,0 +1,13 @@
+{
+  "network": "Stellar Testnet",
+  "contractId": "CBYAGHNNIZ44E7AJQGCLTD3YMH57JFLTTA2Z3THVRO6NQB6HX4PNSC4X",
+  "contractUrl": "https://stellar.expert/explorer/testnet/contract/CBYAGHNNIZ44E7AJQGCLTD3YMH57JFLTTA2Z3THVRO6NQB6HX4PNSC4X",
+  "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+  "target": 100000000,
+  "issuer": "GB26UUYX7Q7HGZGR6KIWV47Z76T642VZ26NCOPGECSAFHVM6NYTDCLQ6",
+  "voteDeadline": 1794862800,
+  "deliveryDeadline": 1795208400,
+  "wasmHash": "bab4145170e0599b7c276e83bfe3a691b6d9359124fc871ce3a9371bf2623d12",
+  "uploadTx": "https://stellar.expert/explorer/testnet/tx/7b0434d1de79e8bc77bd0720226142e0dfcb2fdb5dc8ee9163389e575159765b",
+  "deployTx": "https://stellar.expert/explorer/testnet/tx/7df38d4f634aae58487d1b3a3bfab328f5dd3be15dcc6ea9748ddf45141febcb"
+}

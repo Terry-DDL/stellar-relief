@@ -1,5 +1,17 @@
 # Stellar Relief
 
+## Donor-governed V2 fork
+
+This public fork develops a second, donor-governed version. The original project remains at [Terry-DDL/stellar-relief](https://github.com/Terry-DDL/stellar-relief) and is not changed by this fork. The existing Testnet escrow demo and its evidence below are retained as the V1 reference.
+
+**V2 goal:** donors send a Stellar asset directly to a smart contract pool rather than to an NGO wallet. Anyone may publish a relief-order proposal naming a region, supplier, shop, and quantity. Once the pool reaches its target, donors vote with weight equal to their contribution. A proposal needs more than half of the pooled amount to win. The selected order remains locked until the supplier declares dispatch, the shop independently declares receipt, and a separate voucher issuer attests the aggregate distribution. The contract then pays the supplier and shop 70/30. If the vote fails or the delivery deadline passes, donors can claim refunds.
+
+The V2 contract is in [`contracts/donor_pool`](contracts/donor_pool). Its Rust tests cover successful settlement, failed-vote refunds, and missed-delivery refunds. The V2 page opens by default in the web app; its buttons are **browser-local simulations**, not signed contract calls. The old Guided Demo and its recorded Testnet transactions remain available through the sidebar. The V2 contract is deployed on Testnet at [`CBYAGHNN…PNSC4X`](https://stellar.expert/explorer/testnet/contract/CBYAGHNNIZ44E7AJQGCLTD3YMH57JFLTTA2Z3THVRO6NQB6HX4PNSC4X), initialized with the Testnet USDC asset and a 10 USDC target. The [upload](https://stellar.expert/explorer/testnet/tx/7b0434d1de79e8bc77bd0720226142e0dfcb2fdb5dc8ee9163389e575159765b) and [deployment](https://stellar.expert/explorer/testnet/tx/7df38d4f634aae58487d1b3a3bfab328f5dd3be15dcc6ea9748ddf45141febcb) transactions succeeded; a read-only call returned `Funding`, `total=0`, `target=100000000`. **No V2 donation, vote, or payout has been submitted on-chain.** A donor cannot currently send USDC through the web app.
+
+The voucher issuer is a relief actor, not a custodian of donated funds. The contract records only an aggregate count that this actor attests. It does not prove that each household is real or that goods physically arrived. QR scanning, household eligibility, cross-device reconciliation, independent audits, actual fiat on-ramps, and dispute adjudication remain unimplemented. The 70/30 split and two sample regions are demo parameters, not validated operating economics. Do not expose beneficiary identities on a public ledger.
+
+Run the new contract tests with `cargo test --manifest-path contracts/donor_pool/Cargo.toml`; run the web app using the installation commands below. V1 contract commands elsewhere in this README refer to the preserved original prototype.
+
 **Pre-funded Relief Supply with Offline Voucher Distribution**
 
 ## Project Overview
@@ -92,7 +104,7 @@ npm --prefix web ci
 npm --prefix web run dev -- --host 127.0.0.1
 ```
 
-Open the local URL printed by Vite. **Guided Demo** opens by default with Coastal Flood Relief, a fictional campaign tied to Procurement Order #001 and the recorded Stellar Testnet batch. Its first step lets you simulate contributions from donors using local currency through a provider or an existing USDC wallet. This browser-local donor pool is separate from the recorded Testnet escrow deposit; no fiat conversion or donor transaction occurs. The Agency, Supplier, Local Shop, and Verification views remain available in the navigation. Historical Replay is under **Agency**. The web demo requires no wallet or environment variables.
+Open the local URL printed by Vite. **Donor-governed V2** opens by default. Use the **Guided Demo** link for the preserved V1 Coastal Flood Relief campaign tied to Procurement Order #001 and the recorded Stellar Testnet batch. Its first step simulates contributions from donors using local currency through a provider or an existing USDC wallet. This browser-local donor pool is separate from the recorded Testnet escrow deposit; no fiat conversion or donor transaction occurs. The Agency, Supplier, Local Shop, and Verification views remain available in the navigation. Historical Replay is under **Agency**. The web demo requires no wallet or environment variables.
 
 ### 60-second guided demo
 

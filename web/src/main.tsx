@@ -6,6 +6,7 @@ import { advanceReplay, confirmReceipt, deliveryTimeline, readDemo, reconcile, r
 import type { Demo, Role } from './demo'
 import { useConnectivity } from './connectivity'
 import { verifyTestnet } from './testnet'
+import { DonorGovernedDemo } from './donor-governed'
 import './styles.css'
 import './guided.css'
 
@@ -557,7 +558,7 @@ function Verification({ demo, online }: { demo: Demo; online: boolean }) {
   </>
 }
 
-type Page = Role | 'overview'
+type Page = Role | 'overview' | 'governance'
 
 const pages: Record<Role, { title: string; detail: string }> = {
   agency: { title: 'Agency overview', detail: 'Monitor funding and distribution for your relief batch.' },
@@ -568,7 +569,8 @@ const pages: Record<Role, { title: string; detail: string }> = {
 
 function currentPage(): Page {
   const hash = location.hash.slice(1)
-  return Object.hasOwn(pages, hash) ? hash as Role : 'overview'
+  if (hash === 'overview' || hash === 'governance') return hash
+  return Object.hasOwn(pages, hash) ? hash as Role : 'governance'
 }
 
 function App() {
@@ -607,8 +609,9 @@ function App() {
   }
   return <div className="shell">
     <aside className="sidebar">
-      <a className="brand" href="#overview"><span className="brand-mark"><Icon name="brand" size={21} /></span><strong>{story.name}</strong></a>
+      <a className="brand" href="#governance"><span className="brand-mark"><Icon name="brand" size={21} /></span><strong>{story.name}</strong></a>
       <nav aria-label="Workspace navigation">
+        <a className="overview-link" href="#governance" aria-current={role === 'governance' ? 'page' : undefined}><Icon name="globe" />Donor-governed V2</a>
         <a className="overview-link" href="#overview" aria-current={role === 'overview' ? 'page' : undefined}><Icon name="overview" />Guided Demo</a>
         <span className="nav-caption">Role views</span>
         {(Object.keys(story.roles) as Role[]).map((id) => <a key={id} href={`#${id}`} aria-current={role === id ? 'page' : undefined}><Icon name={id} />{story.roles[id].label}</a>)}
@@ -616,11 +619,13 @@ function App() {
       <div className="sidebar-foot"><span className="network-dot" /><div><strong>{evidence.network}</strong><small>Recorded evidence</small></div></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><p>Stellar Testnet prototype</p><Tag>{batchLabel} · {batch.status} (recorded)</Tag></header>
+      <header className="topbar"><p>{role === 'governance' ? 'Donor-governed prototype · separate fork' : 'Stellar Testnet prototype'}</p><Tag>{role === 'governance' ? 'V2 contract deployed · demo actions local' : `${batchLabel} · ${batch.status} (recorded)`}</Tag></header>
       <main>
         {role === 'overview'
           ? <GuidedDemo demo={demo} apply={apply} reset={reset} online={online} cached={cached} />
-          : <div className="page-heading"><div><h1>{pages[role].title}</h1><p>{pages[role].detail}</p></div><Link href={evidence.contractUrl}>Open Testnet contract</Link></div>}
+          : role === 'governance'
+            ? <DonorGovernedDemo />
+            : <div className="page-heading"><div><h1>{pages[role].title}</h1><p>{pages[role].detail}</p></div><Link href={evidence.contractUrl}>Open Testnet contract</Link></div>}
         {role === 'agency' && replay !== null && <Replay phase={replay} setPhase={setReplay} close={() => setReplay(null)} />}
         {role === 'agency' && <Agency openReplay={() => setReplay(0)} />}
         {role === 'wholesaler' && <Supplier demo={demo} apply={apply} online={online} />}

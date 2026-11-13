@@ -1,5 +1,7 @@
 /target/
+/contracts/donor_pool/target/
 /test_snapshots/
+/contracts/donor_pool/test_snapshots/
 /.stellar/
 /.soroban/
 /web/node_modules/
