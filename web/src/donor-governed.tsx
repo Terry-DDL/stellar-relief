@@ -43,8 +43,10 @@ export function DonorGovernedDemo() {
       <span className="governance-kicker">DONOR-GOVERNED RELIEF · VERSION 2</span>
       <h1>Donors choose the mission. The contract holds the funds.</h1>
       <p>Global donors contribute USDC directly to a pool, vote on a public relief order, then inspect the delivery and payment record. No NGO wallet takes custody of the pool.</p>
-      <div className="governance-hints"><span>V2 contract: deployed on Testnet, pool unfunded</span><span>Actions below: browser simulation</span><span>Original Testnet demo remains available</span></div>
+      <div className="governance-hints"><span>V2 Testnet pool: 10 USDC donated, 6–4 vote recorded</span><span>Actions below: browser simulation</span><span>Original Testnet demo remains available</span></div>
       <a className="governance-contract-link" href={v2Evidence.contractUrl} target="_blank" rel="noreferrer">Inspect V2 Testnet contract ↗</a>
+      <a className="governance-contract-link" href={v2Evidence.demoSettlementTx} target="_blank" rel="noreferrer">View recorded Testnet 7 + 3 USDC settlement ↗</a>
+      <p className="governance-note">Actual Testnet donations and votes are linked in the <a href="https://github.com/yliu54977-bot/stellar-relief#v2-stellar-testnet-evidence" target="_blank" rel="noreferrer">public evidence</a>. The buttons here do not sign transactions.</p>
     </section>
 
     <div className="governance-metrics" aria-label="Public campaign totals">

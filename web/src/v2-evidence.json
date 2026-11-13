@@ -9,5 +9,11 @@
   "deliveryDeadline": 1795208400,
   "wasmHash": "bab4145170e0599b7c276e83bfe3a691b6d9359124fc871ce3a9371bf2623d12",
   "uploadTx": "https://stellar.expert/explorer/testnet/tx/7b0434d1de79e8bc77bd0720226142e0dfcb2fdb5dc8ee9163389e575159765b",
-  "deployTx": "https://stellar.expert/explorer/testnet/tx/7df38d4f634aae58487d1b3a3bfab328f5dd3be15dcc6ea9748ddf45141febcb"
+  "deployTx": "https://stellar.expert/explorer/testnet/tx/7df38d4f634aae58487d1b3a3bfab328f5dd3be15dcc6ea9748ddf45141febcb",
+  "fundingTotal": 100000000,
+  "leadingVotes": 60000000,
+  "demoContractId": "CDLCJPEUKCNZFHHUGQI4C52KUVSRBMFX5CEQ4Y3XTX7T3WG2B4TO27ZK",
+  "demoContractUrl": "https://stellar.expert/explorer/testnet/contract/CDLCJPEUKCNZFHHUGQI4C52KUVSRBMFX5CEQ4Y3XTX7T3WG2B4TO27ZK",
+  "demoPhase": "Settled",
+  "demoSettlementTx": "https://stellar.expert/explorer/testnet/tx/3be19fb3d887155d54c8db14ea82a05e28d1ad3333c5702cb008594c409327eb"
 }
