@@ -17,9 +17,10 @@ Add these as separate Devpost tags:
 
 ## "Try it out" links
 
-1. **Source code and setup:** https://github.com/yliu54977-bot/stellar-relief
-2. **Recorded V2 settlement:** https://stellar.expert/explorer/testnet/tx/3be19fb3d887155d54c8db14ea82a05e28d1ad3333c5702cb008594c409327eb
-3. **V2 Testnet contract:** https://stellar.expert/explorer/testnet/contract/CDLCJPEUKCNZFHHUGQI4C52KUVSRBMFX5CEQ4Y3XTX7T3WG2B4TO27ZK
+1. **Current source code and setup:** https://github.com/Terry-DDL/stellar-relief
+2. **Current V2 Testnet contract:** https://stellar.expert/explorer/testnet/contract/CCQJYZFPUCKVA76AU3RDWIHPPNSZKSG45QNEZXE7V3QHPOSPKGJF2XNH
+3. **Supplier's 7 USDC claim:** https://stellar.expert/explorer/testnet/tx/ba3621b7bd9592274718ead7e5ce13874e849b2f24b529bd46644ec5262e1231
+4. **Shop's later 3 USDC claim:** https://stellar.expert/explorer/testnet/tx/901f62794261f9c420f597849b71848a0314ca623ecbe3dd747f49ab796182b2
 
 The local preview at `127.0.0.1:4177` works only on the developer's computer and should not be entered as a public demo URL. A public live app has not been deployed.
 
