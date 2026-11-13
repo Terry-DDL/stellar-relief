@@ -314,12 +314,12 @@ function Shop(props: FieldProps) {
 }
 
 const guidedSteps = [
-  { short: 'Donate', title: 'Global donors fund local relief', icon: 'globe' },
-  { short: 'Vote', title: 'Donors decide where relief goes', icon: 'check' },
-  { short: 'Dispatch', title: 'Suppliers can verify committed funding', icon: 'wholesaler' },
-  { short: 'Receive', title: 'Local shops confirm delivery', icon: 'shop' },
-  { short: 'Distribute', title: 'Families collect supplies locally', icon: 'box' },
-  { short: 'Settle & Audit', title: 'Transparent settlement on Stellar', icon: 'history' },
+  { short: 'Fund', title: 'People around the world fund the relief mission', icon: 'globe' },
+  { short: 'Decide', title: 'Donors choose which relief mission to fund', icon: 'check' },
+  { short: 'Supply', title: 'A local supplier delivers three relief kits', icon: 'wholesaler' },
+  { short: 'Verify', title: 'The community shop confirms delivery', icon: 'shop' },
+  { short: 'Deliver', title: 'Three families collect their supplies', icon: 'box' },
+  { short: 'Pay & Prove', title: 'Local partners get paid. Donors can verify the payment.', icon: 'history' },
 ] as const
 
 const v2Explorer = 'https://stellar.expert/explorer/testnet/tx/'
@@ -341,14 +341,16 @@ function readGuidedSample() {
 }
 
 function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
-  const [step, setStep] = useState(() => {
+  const [activeStep, setStep] = useState<number | null>(() => {
     try {
-      const saved = Number(sessionStorage.getItem(storageKey))
-      return Number.isInteger(saved) && saved >= 0 && saved < guidedSteps.length ? saved : 0
+      const stored = sessionStorage.getItem(storageKey)
+      const saved = Number(stored)
+      return stored !== null && Number.isInteger(saved) && saved >= 0 && saved < guidedSteps.length ? saved : null
     } catch {
-      return 0
+      return null
     }
   })
+  const step = activeStep ?? 0
   const [sample, setSample] = useState(readGuidedSample)
   const [notice, setNotice] = useState('')
   const [voucherCode, setVoucherCode] = useState('')
@@ -370,7 +372,7 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
     try { sessionStorage.setItem(storageKey, String(next)) } catch { /* Navigation can continue without session storage. */ }
     requestAnimationFrame(() => {
       stageTitle.current?.focus({ preventScroll: true })
-      stageTitle.current?.scrollIntoView({ block: 'start' })
+      stageTitle.current?.scrollIntoView({ block: 'nearest' })
     })
   }
 
@@ -396,30 +398,30 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
   }
 
   const donorName = (index: number) => index === 0 ? 'Donor A' : 'Donor B'
-  const fieldStatus = (value: boolean, complete: string, pending = 'Pending') => value ? complete : pending
-  const orderSummary = <dl className="details v2-facts">
-    <div><dt>Approved proposal</dt><dd>{winner ?? 'Awaiting vote'}</dd></div>
-    <div><dt>Procurement</dt><dd>{quantity} emergency supply kits</dd></div>
-    <div><dt>Supplier allocation</dt><dd>{supplierAmount} USDC</dd></div>
-    <div><dt>Shop allocation</dt><dd>{shopAmount} USDC</dd></div>
-  </dl>
+  const mission = winner ?? proposals[0]
+  const winningWeight = sample.winner === null ? 0 : tallies[sample.winner]
 
   return <>
-    <section className="guided-hero" aria-labelledby="guided-heading">
+    {activeStep === null && <section className="guided-hero" aria-labelledby="guided-heading">
       <div className="guided-intro">
-        <p className="eyebrow">Donor-governed relief</p>
-        <h1 id="guided-heading">From global donations to accountable local relief.</h1>
-        <p>Global donors fund local relief through transparent on-chain governance, verified fulfillment claims, and conditional payments to local suppliers and distribution partners.</p>
+        <p className="eyebrow">Coastal Flood Relief</p>
+        <h1 id="guided-heading">Three families need emergency supplies.</h1>
+        <p>Global donors fund the purchase. A local supplier and shop get food and water to the families. Stellar makes the payment trail verifiable.</p>
         <div className="hero-actions"><button type="button" className="button hero-button" onClick={() => goToStep(0)}>Start Guided Demo <Icon name="arrow" size={16} /></button></div>
       </div>
       <div className="hero-order">
-        <div className="hero-order-top"><span><Icon name="lock" size={17} /> Soroban funding pool</span><Tag>Sample campaign</Tag></div>
-        <h2>One pool. A public decision.</h2>
-        <strong className="hero-order-amount">{total} / {target} <small>USDC</small></strong>
-        <span className="hero-order-caption">Donations go directly to the contract. No NGO wallet holds the pool.</span>
-        <div className="v2-hero-pool"><progress value={total} max={target} aria-label="Sample funding progress" /></div>
-        <div className="hero-order-split"><div><strong>{supplierAmount} USDC</strong><span>Supplier allocation</span></div><div><strong>{shopAmount} USDC</strong><span>Shop allocation</span></div></div>
+        <div className="hero-order-top"><span><Icon name="box" size={17} /> Food and water kits</span><Tag>Fictional mission</Tag></div>
+        <strong className="hero-order-amount">{target} <small>USDC</small></strong>
+        <span className="hero-order-caption">Budget for {quantity} kits, one per family</span>
+        <div className="hero-order-split v2-hero-budget"><div><strong>{supplierAmount} USDC</strong><span>Supplier · provides kits</span></div><div><strong>{shopAmount} USDC</strong><span>Shop · receives and distributes</span></div></div>
       </div>
+    </section>}
+
+    <section className="v2-mission" aria-label="Sample mission summary">
+      <div className="v2-mission-heading"><strong>{mission}</strong><Tag tone="amber">Browser simulation</Tag></div>
+      <p>{target} USDC budget · {quantity} kits · {quantity} families</p>
+      <p>{supplierAmount} USDC supplier · {shopAmount} USDC shop service</p>
+      <p>{dispatched} dispatched · {received} received · {distributed} distributed</p>
     </section>
 
     <nav className="guided-steps v2-steps" aria-label="Guided Demo steps">
@@ -430,7 +432,9 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
 
     <section className="guided-stage" aria-labelledby="stage-title">
       <header className="stage-header">
-        <div><p className="eyebrow">Step {step + 1} of {guidedSteps.length}</p><h2 id="stage-title" ref={stageTitle} tabIndex={-1}>{guidedSteps[step].title}</h2></div>
+        <div><p className="eyebrow">Step {step + 1} of {guidedSteps.length}</p>{activeStep === null
+          ? <h2 id="stage-title" ref={stageTitle} tabIndex={-1}>{guidedSteps[step].title}</h2>
+          : <h1 id="stage-title" ref={stageTitle} tabIndex={-1}>{guidedSteps[step].title}</h1>}</div>
         <div className="stage-controls">
           <button type="button" className="button secondary" aria-label="Previous step" disabled={step === 0} onClick={() => goToStep(step - 1)}><Icon name="back" size={15} /> Previous</button>
           {step < guidedSteps.length - 1
@@ -439,8 +443,8 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
         </div>
       </header>
 
-      {step === 0 && <Card title="Fund the sample pool" extra={<Tag tone="amber">Sample demo interaction</Tag>}>
-        <p className="card-description">These controls simulate USDC contributions in this browser. No funds move and no fiat is converted.</p>
+      {step === 0 && <Card title="A 10 USDC relief purchase">
+        <p className="card-description">The donors are funding one purchase of three food and water kits, plus local distribution. Families receive supplies rather than cryptocurrency.</p>
         <div className="v2-donor-grid">
           {donors.map((amount, index) => <div className="v2-item" key={amount}><strong>{donorName(index)} · {amount} USDC</strong>
             <button type="button" className="button primary" disabled={sample.deposits[index]} onClick={() => void change({ type: 'donate', donor: index === 0 ? 0 : 1 })}>
@@ -448,46 +452,48 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
             </button>
           </div>)}
         </div>
-        <p className="v2-total"><strong>{total} of {target} USDC</strong> in the sample pool</p>
-        <div className="v2-proof"><Tag>Recorded Testnet transactions</Tag><Link href={v2Evidence.contractUrl}>Long-running funding campaign</Link>
+        <div className="v2-total v2-funding"><p><strong>{total} of {target} USDC</strong> in the sample pool</p><progress value={total} max={target} aria-label="Sample funding progress" /></div>
+        <div className="v2-proof"><Tag>Recorded Testnet · funding and voting campaign</Tag><Link href={v2Evidence.contractUrl}>Long-running funding campaign</Link>
           {contributionTx.map((hash, index) => <Link href={v2Explorer + hash} key={hash}>{donorName(index)} deposit</Link>)}
         </div>
       </Card>}
 
-      {step === 1 && <Card title="Choose the relief order" extra={<Tag tone="amber">Sample demo interaction</Tag>}>
-        <p className="card-description">Once the pool reaches {target} USDC, each donor can vote once. A proposal needs more than {target / 2} of the pool’s voting weight.</p>
+      {step === 1 && <Card title="Two proposals, one budget">
+        <p className="card-description">Each donor votes once. Their contribution sets their voting weight. The proposal with more than {target / 2} of the {target} total weight wins.</p>
         <div className="v2-donor-grid">
           {proposals.map((proposal, index) => <div className="v2-item" key={proposal}><strong>{proposal}</strong><span>{tallies[index]} / {target} voting weight</span></div>)}
           {donors.map((amount, index) => <div className="v2-item" key={amount}><strong>{donorName(index)} · {amount} weight</strong>
-            <div className="v2-actions">{proposals.map((proposal, choice) => <button key={proposal} type="button" className={choice === index ? 'button primary' : 'button secondary'}
+            <div className="v2-actions">{proposals.map((proposal, choice) => <button key={proposal} type="button" className="button secondary"
               disabled={total !== target || sample.winner !== null || sample.votes[index] !== null}
               aria-pressed={sample.votes[index] === choice}
               onClick={() => void change({ type: 'vote', donor: index === 0 ? 0 : 1, proposal: choice === 0 ? 0 : 1 })}>
               {donorName(index)}: {choice === 0 ? 'Coastal' : 'Mountain'}
+              {sample.votes[index] === choice && <Icon name="check" size={14} />}
             </button>)}</div>
+            {sample.votes[index] === null && <span>Suggested: {index === 0 ? 'Coastal' : 'Mountain'}</span>}
           </div>)}
         </div>
-        <button type="button" className="button primary" disabled={winner !== null || !tallies.some((weight) => weight > target / 2)} onClick={() => void change({ type: 'approve' })}>Approve sample order</button>
-        {winner && <p className="v2-total"><strong>{winner}</strong> · Procurement Order #001</p>}
-        <div className="v2-proof"><Tag>Recorded Testnet transactions</Tag>{voteTx.map((hash, index) => <Link href={v2Explorer + hash} key={hash}>{donorName(index)} vote</Link>)}</div>
+        <button type="button" className="button primary" disabled={winner !== null || !tallies.some((weight) => weight > target / 2)} onClick={() => void change({ type: 'approve' })}>Close sample vote</button>
+        {winner && <p className="v2-total"><strong>{winner}</strong> · Procurement Order #001 <span>· {winningWeight} / {target} weight</span></p>}
+        <div className="v2-proof"><Tag>Recorded Testnet · funding and voting campaign</Tag>{voteTx.map((hash, index) => <Link href={v2Explorer + hash} key={hash}>{donorName(index)} vote</Link>)}</div>
       </Card>}
 
-      {step === 2 && <Card title="Procurement Order #001" extra={<Tag tone="amber">Sample demo interaction</Tag>}>
-        {orderSummary}
-        <p className="card-description">The Stellar contract holds the funding. The designated supplier can inspect the commitment and authorize its dispatch declaration. Payment follows full distribution attestation and settlement under the current contract.</p>
+      {step === 2 && <Card title="Procurement Order #001">
+        <p className="v2-total"><strong>{winner ?? 'Awaiting the vote'}</strong> · {quantity} food and water kits</p>
+        <p className="card-description">Before sending the kits, the supplier can check that the Stellar contract holds the purchase budget, including its {supplierAmount} USDC allocation. The designated supplier signs the on-chain dispatch declaration. Sending the kits does not release payment.</p>
         <button type="button" className="button primary" disabled={!winner || Boolean(dispatched)} onClick={() => void change({ type: 'dispatch' })}>{dispatched ? '3 kits dispatched in the sample' : 'Simulate dispatch of 3 kits'}</button>
         <div className="v2-proof"><Tag>Recorded Testnet evidence</Tag><Link href={v2Evidence.contractUrl}>Inspect long-running funding pool</Link><Link href={v2Explorer + 'f17872955c55f488c0b5be75ab632fa5dd728cde1fc578d72e0927d5ed8c77d9'}>Supplier declaration · separate completed campaign</Link></div>
       </Card>}
 
-      {step === 3 && <Card title="Match dispatch to receipt" extra={<Tag tone="amber">Sample demo interaction</Tag>}>
+      {step === 3 && <Card title="A second account confirms the same kits">
         <dl className="details v2-facts"><div><dt>Supplier dispatched</dt><dd>{dispatched} kits</dd></div><div><dt>Shop acknowledged</dt><dd>{received} kits</dd></div></dl>
-        <p className="card-description">The contract requires distinct authorized supplier and shop accounts. Their matching declarations are statements about delivery. Physical verification requires an independent process.</p>
+        <p className="card-description">The shop counts the kits and signs its own on-chain receipt. Matching the two records makes both parties accountable for their claims. Physical delivery still requires independent verification.</p>
         <button type="button" className="button primary" disabled={!dispatched || Boolean(received)} onClick={() => void change({ type: 'receive' })}>{received ? '3 kits received in the sample' : 'Simulate receipt of 3 kits'}</button>
         <div className="v2-proof"><Tag>Recorded Testnet transaction</Tag><Link href={v2Explorer + '881ae6920559dec3c1da0c820ca6678cdd52fa48e1399450e2b73f76b45dbc6c'}>Shop declaration · separate completed campaign</Link></div>
       </Card>}
 
       {step === 4 && <Card title="Redeem sample vouchers" extra={<Tag tone={online ? 'teal' : 'amber'}>{online ? 'Browser online' : 'Browser offline'}</Tag>}>
-        <p className="card-description">Voucher records stay on this device and can be entered offline. The contract relies on an authorized issuer’s aggregate attestation. These redemptions do not sync to it or verify household delivery.</p>
+        <p className="card-description">One voucher lets one family collect a kit without a crypto wallet. The shop can record redemptions offline. These records stay on this device. On-chain settlement relies on a separate count signed by the authorized issuer.</p>
         <dl className="details v2-facts"><div><dt>Kits distributed</dt><dd>{distributed} / {quantity}</dd></div><div><dt>Kits remaining</dt><dd>{remaining}</dd></div></dl>
         <div className="v2-actions">{vouchers.map((code) => {
           const used = sample.field.redemptions.some((item) => item.code === code)
@@ -503,32 +509,31 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
           onClick={() => void change({ type: 'attest' })}>{sample.attested ? 'Sample distribution attested' : 'Simulate issuer attestation'}</button>
       </Card>}
 
-      {step === 5 && <div className="grid">
-        <Card title="Sample campaign audit" extra={<Tag tone="amber">Sample demo interaction</Tag>}>
-          <dl className="details v2-facts">
-            <div><dt>Donor pool</dt><dd>{total} / {target} USDC</dd></div>
-            <div><dt>Winning proposal</dt><dd>{winner ?? 'Pending'}</dd></div>
-            <div><dt>Supplier dispatch</dt><dd>{dispatched} kits</dd></div>
-            <div><dt>Shop receipt</dt><dd>{received} kits</dd></div>
-            <div><dt>Distribution attestation</dt><dd>{fieldStatus(sample.attested, `${distributed} kits attested`)}</dd></div>
-            <div><dt>Sample settlement</dt><dd>{fieldStatus(sample.settled, 'Recorded locally')}</dd></div>
-          </dl>
-          <button type="button" className="button primary" disabled={!sample.attested || sample.settled}
-            onClick={() => void change({ type: 'settle' })}>{sample.settled ? 'Sample settlement complete' : 'Simulate 7 + 3 USDC settlement'}</button>
+      {step === 5 && <>
+        <Card title="Your Sample Mission" extra={<Tag tone="amber">Browser simulation</Tag>}>
+          <p className="card-description"><strong>{mission}</strong> · These browser interactions did not move funds.</p>
+          <ol className="v2-outcome" aria-label="Sample mission progress">
+            {([
+              ['Funded', `${total} / ${target} USDC`, total === target],
+              ['Chosen', winner ? `${winningWeight} / ${target} vote weight` : 'Vote pending', winner !== null],
+              ['Delivered', `${dispatched} sent · ${received} received`, received === quantity],
+              ['Distributed', `${distributed} / ${quantity} families${sample.attested ? ' · attested' : ''}`, sample.attested],
+              ['Paid', sample.settled ? 'Recorded in sample' : 'Payment pending', sample.settled],
+            ] as const).map(([label, detail, done]) => <li key={label} data-done={done}><strong>{done && <Icon name="check" size={14} />}{label}</strong><span>{detail}</span></li>)}
+          </ol>
+          <p className="card-description">After authorized dispatch, receipt and full distribution attestations, the current contract makes both payments in one transaction.</p>
+          <div className="v2-actions v2-pay"><strong>{supplierAmount} USDC to supplier</strong><strong>{shopAmount} USDC to shop</strong>
+            <button type="button" className="button primary" disabled={!sample.attested || sample.settled}
+              onClick={() => void change({ type: 'settle' })}>{sample.settled ? 'Sample settlement complete' : 'Simulate 7 + 3 USDC settlement'}</button>
+          </div>
         </Card>
-        <Card title="Separate completed Testnet campaign" extra={<Tag>Recorded Testnet transaction</Tag>}>
-          <dl className="details v2-facts">
-            <div><dt>Donor funding</dt><dd>{target} USDC · 6 + 4</dd></div>
-            <div><dt>Winning proposal</dt><dd>Coastal Relief · 6–4</dd></div>
-            <div><dt>Dispatch, receipt, distribution</dt><dd>3 kits declared at each stage</dd></div>
-            <div><dt>Contract phase</dt><dd>{v2Evidence.demoPhase}</dd></div>
-            <div><dt>Supplier payout</dt><dd>{supplierAmount} USDC</dd></div>
-            <div><dt>Shop payout</dt><dd>{shopAmount} USDC</dd></div>
-          </dl>
-          <p className="card-description">One transaction paid both recipients after full distribution attestation. Independent payouts remain future work. Deadline refunds can still displace payment for accepted delivery.</p>
+        <Card title="Real Stellar Testnet Proof" extra={<Tag>Separate completed Testnet campaign</Tag>}>
+          <p className="card-description">The short-duration campaign paid 7 USDC to its supplier and 3 USDC to its shop in one confirmed transaction. It has its own contract and transaction history.</p>
           <div className="v2-proof"><Link href={v2Evidence.demoSettlementTx}>View confirmed V2 settlement</Link><Link href={v2Evidence.demoContractUrl}>View short-duration contract</Link></div>
+          <p className="v2-limitations"><strong>Prototype limits.</strong> Separate payouts are not implemented. Deadline refunds can still leave an accepted delivery unpaid.</p>
         </Card>
-      </div>}
+        <p className="v2-takeaway">A Stellar contract holds the purchase budget and releases conditional payments donors can verify in a public record.</p>
+      </>}
       <div className="v2-demo-footer"><span role="status">{notice}</span><button type="button" className="text-button" onClick={() => void change('reset')}>Reset demo</button></div>
     </section>
   </>

@@ -19,6 +19,10 @@ test('contributions and votes are one-use and require the full pool', () => {
   assert.equal(act(voted, vote(0, 1)), voted)
   assert.deepEqual(summarize(approved()).tallies, [6, 4])
   assert.equal(approved().winner, 0)
+  const alternative = act(act(act(funded(), vote(0, 1)), vote(1, 0)), approve)
+  assert.deepEqual(summarize(alternative).tallies, [4, 6])
+  assert.equal(alternative.winner, 1)
+  assert.deepEqual(alternative.votes, [1, 0])
   assert.equal(act(act(funded(), vote(1, 1)), approve).winner, null)
 })
 

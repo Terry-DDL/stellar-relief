@@ -105,7 +105,7 @@ Open the URL printed by Vite. **Guided Demo** opens with the donor-governed V2 s
 ### 60-second guided demo
 
 1. **0–10 s · Donate.** Simulate the 6 and 4 USDC contributions to fill the sample pool.
-2. **10–20 s · Vote.** Give Donor A’s six votes to Coastal and Donor B’s four votes to Mountain, then approve the sample order.
+2. **10–20 s · Decide.** Give Donor A’s six votes to Coastal and Donor B’s four votes to Mountain. Select **Close sample vote** to show Coastal winning 6–4.
 3. **20–32 s · Dispatch and receive.** Show the 7/3 USDC allocations. Record three kits dispatched, then confirm the shop receipt.
 4. **32–46 s · Distribute.** Redeem the three sample vouchers and simulate the issuer’s aggregate attestation.
 5. **46–60 s · Settle and audit.** Simulate settlement, then show the confirmed 7 + 3 USDC transaction in the separate completed Testnet campaign.
@@ -117,7 +117,7 @@ npm --prefix web run build
 npm --prefix web run preview -- --host 127.0.0.1
 ```
 
-Open the app online and wait for **Distribute** to report that it is cached. Disconnect and reload. Sample voucher redemptions persist on the device. Reconnect to use the read-only V1 chain check under **Supplier** or **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
+Open the app online and wait for **Deliver** to report that it is cached. Disconnect and reload. Sample voucher redemptions persist on the device. Reconnect to use the read-only V1 chain check under **Supplier** or **Verification**. If browser CORS blocks the request, run the same read-only check from the repository root:
 
 ```sh
 node --disable-warning=ExperimentalWarning --experimental-strip-types web/scripts/verify-testnet.mjs
