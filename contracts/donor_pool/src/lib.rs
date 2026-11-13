@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env, String};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env, String, U256};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,6 +37,8 @@ pub struct Proposal {
     pub dispatched: u32,
     pub received: u32,
     pub distributed: u32,
+    pub supplier_paid: bool,
+    pub shop_paid: bool,
 }
 
 #[contracttype]
@@ -47,6 +49,7 @@ enum Key {
     Proposal(u32),
     Donation(Address),
     Vote(Address),
+    RefundRemainder,
 }
 
 #[contracterror]
@@ -63,6 +66,48 @@ pub enum Error {
     QuantityMismatch = 8,
     AlreadyDeclared = 9,
     NotReady = 10,
+    AlreadyPaid = 11,
+}
+
+// Floor 70% without overflowing i128, even for the largest supported target.
+fn supplier_share(total: i128) -> i128 {
+    (total / 10) * 7 + (total % 10) * 7 / 10
+}
+
+fn claim_payment(env: Env, proposal_id: u32, supplier: bool) -> Result<i128, Error> {
+    let store = env.storage().instance();
+    let mut campaign = DonorPool::campaign(env.clone());
+    if campaign.winner != Some(proposal_id)
+        || !matches!(campaign.phase, Phase::Approved | Phase::Refundable | Phase::Settled)
+    {
+        return Err(Error::WrongPhase);
+    }
+    let mut proposal = DonorPool::proposal(env.clone(), proposal_id).ok_or(Error::ProposalMissing)?;
+    let supplier_amount = supplier_share(campaign.total);
+    let (recipient, amount) = if supplier {
+        proposal.supplier.require_auth();
+        if proposal.supplier_paid { return Err(Error::AlreadyPaid); }
+        if proposal.received != proposal.quantity { return Err(Error::NotReady); }
+        proposal.supplier_paid = true;
+        (&proposal.supplier, supplier_amount)
+    } else {
+        proposal.shop.require_auth();
+        if proposal.shop_paid { return Err(Error::AlreadyPaid); }
+        if proposal.distributed != proposal.quantity { return Err(Error::NotReady); }
+        proposal.shop_paid = true;
+        (&proposal.shop, campaign.total - supplier_amount)
+    };
+
+    store.set(&Key::Proposal(proposal_id), &proposal);
+    if proposal.supplier_paid && proposal.shop_paid {
+        campaign.phase = Phase::Settled;
+        store.set(&Key::Campaign, &campaign);
+    }
+    if amount > 0 {
+        let asset = store.get(&Key::Asset).unwrap();
+        token::TokenClient::new(&env, &asset).transfer(&env.current_contract_address(), recipient, &amount);
+    }
+    Ok(amount)
 }
 
 #[contract]
@@ -129,12 +174,13 @@ impl DonorPool {
         if env.ledger().timestamp() >= campaign.vote_deadline {
             return Err(Error::WrongPhase);
         }
-        if quantity == 0 || region.len() == 0 || supplier == shop || supplier == campaign.issuer || shop == campaign.issuer {
+        if quantity == 0 || region.len() == 0 || supplier == shop || supplier == campaign.issuer || shop == campaign.issuer
+            || supplier == env.current_contract_address() || shop == env.current_contract_address() {
             return Err(Error::InvalidInput);
         }
         let id: u32 = store.get(&Key::NextProposal).unwrap();
         let next = id.checked_add(1).ok_or(Error::InvalidInput)?;
-        let proposal = Proposal { id, region, quantity, supplier, shop, votes: 0, dispatched: 0, received: 0, distributed: 0 };
+        let proposal = Proposal { id, region, quantity, supplier, shop, votes: 0, dispatched: 0, received: 0, distributed: 0, supplier_paid: false, shop_paid: false };
         store.set(&Key::Proposal(id), &proposal);
         store.set(&Key::NextProposal, &next);
         Ok(proposal)
@@ -148,7 +194,7 @@ impl DonorPool {
         if campaign.phase != Phase::Funding || env.ledger().timestamp() >= campaign.vote_deadline {
             return Err(Error::WrongPhase);
         }
-        if amount <= 0 { return Err(Error::InvalidInput); }
+        if amount <= 0 || donor == env.current_contract_address() { return Err(Error::InvalidInput); }
         let new_total = campaign.total.checked_add(amount).ok_or(Error::InvalidInput)?;
         if new_total > campaign.target { return Err(Error::TargetExceeded); }
         let asset: Address = store.get(&Key::Asset).unwrap();
@@ -233,36 +279,30 @@ impl DonorPool {
         if campaign.phase != Phase::Approved || campaign.winner != Some(proposal_id) || env.ledger().timestamp() >= campaign.delivery_deadline { return Err(Error::WrongPhase); }
         campaign.issuer.require_auth();
         let mut proposal: Proposal = store.get(&Key::Proposal(proposal_id)).ok_or(Error::ProposalMissing)?;
-        if proposal.received == 0 || count < proposal.distributed || count > proposal.received { return Err(Error::InvalidInput); }
+        if proposal.received == 0 || count <= proposal.distributed || count > proposal.received { return Err(Error::InvalidInput); }
         proposal.distributed = count;
         store.set(&Key::Proposal(proposal_id), &proposal);
         Ok(proposal)
     }
 
-    /// Only a full matching delivery and distribution release the two payments.
-    pub fn settle(env: Env, proposal_id: u32) -> Result<Campaign, Error> {
-        let store = env.storage().instance();
-        let mut campaign: Campaign = store.get(&Key::Campaign).unwrap();
-        if campaign.phase != Phase::Approved || campaign.winner != Some(proposal_id) || env.ledger().timestamp() >= campaign.delivery_deadline { return Err(Error::WrongPhase); }
-        let proposal: Proposal = store.get(&Key::Proposal(proposal_id)).ok_or(Error::ProposalMissing)?;
-        if proposal.dispatched != proposal.quantity || proposal.received != proposal.quantity || proposal.distributed != proposal.quantity { return Err(Error::NotReady); }
-        let asset: Address = store.get(&Key::Asset).unwrap();
-        let token = token::TokenClient::new(&env, &asset);
-        let escrow = env.current_contract_address();
-        let supplier_amount = campaign.total.checked_mul(7).ok_or(Error::InvalidInput)? / 10;
-        let shop_amount = campaign.total - supplier_amount;
-        token.transfer(&escrow, &proposal.supplier, &supplier_amount);
-        token.transfer(&escrow, &proposal.shop, &shop_amount);
-        campaign.phase = Phase::Settled;
-        store.set(&Key::Campaign, &campaign);
-        Ok(campaign)
+    /// Accepted receipt reserves the supplier share, including after expiry.
+    pub fn claim_supplier(env: Env, proposal_id: u32) -> Result<i128, Error> {
+        claim_payment(env, proposal_id, true)
     }
 
-    /// If no order wins, or delivery times out, each donor can recover their contribution.
+    /// Full distribution attestation reserves the separate shop share.
+    pub fn claim_shop(env: Env, proposal_id: u32) -> Result<i128, Error> {
+        claim_payment(env, proposal_id, false)
+    }
+
+    /// Close fulfillment at the deadline and open refunds for unearned funds.
     pub fn enable_refunds(env: Env) -> Result<Campaign, Error> {
         let store = env.storage().instance();
         let mut campaign: Campaign = store.get(&Key::Campaign).unwrap();
         if campaign.phase != Phase::Approved || env.ledger().timestamp() < campaign.delivery_deadline { return Err(Error::WrongPhase); }
+        let winner = campaign.winner.ok_or(Error::WrongPhase)?;
+        let proposal = Self::proposal(env.clone(), winner).ok_or(Error::ProposalMissing)?;
+        if proposal.distributed == proposal.quantity { return Err(Error::NotReady); }
         campaign.phase = Phase::Refundable;
         store.set(&Key::Campaign, &campaign);
         Ok(campaign)
@@ -273,11 +313,36 @@ impl DonorPool {
         let store = env.storage().instance();
         let campaign: Campaign = store.get(&Key::Campaign).unwrap();
         if campaign.phase != Phase::Refundable { return Err(Error::WrongPhase); }
-        let amount: i128 = store.get(&Key::Donation(donor.clone())).unwrap_or(0);
-        if amount == 0 { return Err(Error::NoDonation); }
-        store.set(&Key::Donation(donor.clone()), &0_i128);
-        let asset: Address = store.get(&Key::Asset).unwrap();
-        token::TokenClient::new(&env, &asset).transfer(&env.current_contract_address(), &donor, &amount);
+        let principal = Self::donation(env.clone(), donor.clone());
+        if principal == 0 { return Err(Error::NoDonation); }
+
+        let mut refund_pool = campaign.total;
+        if let Some(winner) = campaign.winner {
+            let proposal = Self::proposal(env.clone(), winner).ok_or(Error::ProposalMissing)?;
+            if proposal.distributed == proposal.quantity {
+                refund_pool = 0;
+            } else if proposal.received == proposal.quantity {
+                refund_pool -= supplier_share(campaign.total);
+            }
+        }
+        if refund_pool == 0 { return Err(Error::NotReady); }
+
+        // Carry the fractional numerator between claims. Each donor gets floor
+        // or ceil of their pro-rata share, and the entire refund pool is allocated.
+        let denominator = U256::from_u128(&env, campaign.total as u128);
+        let carry = store.get::<_, u128>(&Key::RefundRemainder).unwrap_or(0);
+        let numerator = U256::from_u128(&env, principal as u128)
+            .mul(&U256::from_u128(&env, refund_pool as u128))
+            .add(&U256::from_u128(&env, carry));
+        let quotient = numerator.div(&denominator);
+        let remainder = numerator.sub(&quotient.mul(&denominator)).to_u128().unwrap();
+        let amount = quotient.to_u128().unwrap() as i128;
+        store.set(&Key::RefundRemainder, &remainder);
+        store.remove(&Key::Donation(donor.clone()));
+        if amount > 0 {
+            let asset = store.get(&Key::Asset).unwrap();
+            token::TokenClient::new(&env, &asset).transfer(&env.current_contract_address(), &donor, &amount);
+        }
         Ok(amount)
     }
 }

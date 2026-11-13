@@ -2,17 +2,17 @@
 
 V2 is the intended product direction. Donors send USDC directly to a Soroban pool. Their contribution-weighted votes select a procurement proposal. Local actors declare dispatch, receipt, and distribution. The pool pays the supplier and shop. An NGO is optional and does not need to hold donor funds. A trustworthy process still needs oversight, voucher issuance, and dispute resolution.
 
-The [V2 contract](../contracts/donor_pool) and [V2 evidence metadata](../web/src/v2-evidence.json) are imported from the teammate fork. The existing web entry point, Guided Demo, and role views continue to run the V1 demonstration. The imported V2 view is isolated source for a future migration. Its controls are local simulations. The fork’s Devpost drafts are retained as drafts, and the external submission has not been edited.
+The [V2 contract](../contracts/donor_pool) is a separate Rust/Soroban crate. The [V2 Guided Demo](../web/src/guided-v2.ts) mirrors the successful payment path in browser storage. Its controls submit no transactions.
 
-## Implemented contract behavior
-
-| Stage | V2 behavior |
+| Stage | Current source behavior |
 | --- | --- |
-| Funding | Donor authorization precedes a transfer to the contract. Amounts are recorded by address. The configured token address is chosen at deployment. The recorded campaigns used Testnet USDC. |
-| Proposals and votes | Any authenticated proposer can name a supplier, shop, region, and positive quantity before voting closes. Once funding reaches the exact target, donors can vote once per address, weighted by contribution. A winner needs strictly more than half of the funded pool. |
-| Approval and delivery | Anyone can finalize after the vote deadline. For the approved proposal, the designated supplier authorizes dispatch and the designated shop authorizes a matching receipt. Both must match the full order quantity. |
-| Distribution and payment | The configured issuer attests a nondecreasing aggregate count, bounded by the received quantity. Anyone can trigger settlement after all counts match and before the deadline. One transaction transfers 70% to the supplier, rounded down in token units, and the remainder to the shop. |
-| Refunds | An unsuccessful campaign becomes refundable after finalization. An approved campaign becomes refundable at the delivery deadline if it has not settled. Each donor must authorize their own claim. The claim zeros their balance before transferring their original contribution. |
+| Funding and voting | Donors authorize transfers directly to the pool. After the exact target is met, each donor can vote once with weight equal to their contribution. An approved proposal needs strictly more than half of the pool's weight at finalization. |
+| Dispatch and receipt | The winning supplier authorizes dispatch and the winning shop separately authorizes receipt. Both require the full order quantity before the delivery deadline. Accepted receipt reserves the supplier's share, rounded down to 70% in token units. |
+| Distribution | The issuer authorizes increasing aggregate counts up to the received quantity before the same deadline. Full distribution reserves the remaining shop share. Partial distribution earns no shop payment in this version. |
+| Claims | `claim_supplier(proposal_id)` and `claim_shop(proposal_id)` replace `settle`. Each requires the named recipient's authorization. Earned claims survive expiry, can execute in either order once eligible, and can be retried after a failed transfer. The proposal exposes `supplier_paid` and `shop_paid`. The phase becomes `Settled` after both claims. |
+| Refunds | Failed governance releases all contributions. After an approved campaign expires, `enable_refunds` releases the full pool if no receipt was accepted, or the unearned shop share if receipt was accepted and distribution incomplete. Full attestation leaves no refundable funds. Claims require donor authorization. Each donor's principal is consumed once, even if the rounded refund is zero. |
+
+Partial refunds are proportional to original contributions. Fractional numerators carry across successful claims, so a donor receives the floor or ceiling of their share depending on claim order. The total is distributed exactly when all donors claim. Paid shares and unpaid earned shares are excluded equally. Unclaimed amounts remain in the contract. Accounting assumes an honest configured token and excludes unsolicited transfers.
 
 ## Recorded Stellar Testnet evidence
 
@@ -28,11 +28,11 @@ The short campaign [finalized the 6–4 vote](https://stellar.expert/explorer/te
 
 The short campaign settled in ledger `5701421`. The transaction effects record the 7 and 3 USDC debits from that pool and matching credits to the designated recipients. The [V1 escrow transactions](testnet-evidence.md) are archived separately. V2’s declared deliveries and distribution counts were submitted by demo accounts for fictional orders. They do not establish physical delivery, household eligibility, or individual voucher use.
 
-## Release blocker and follow-up
+## Deadline refund regression
 
-**An accepted supplier delivery has no protected payment obligation.** `declare_receipt` records acceptance, but `settle` still requires full distribution and rejects calls at or after the deadline. `enable_refunds` can move any still-approved campaign into full refunds once that deadline is reached, without considering its delivery or distribution records. This applies even when all attestations were recorded before the cutoff and nobody completed settlement in time. A missing issuer attestation, partial distribution, or failed shop transfer can also block supplier payment. The current V2 contract is retained unchanged for review and historical reproducibility.
+The earlier deployment could enable full donor refunds after accepted delivery or even full distribution if nobody called its atomic settlement before the deadline. This source release protects accepted supplier payments and fully attested shop payments by excluding those obligations from the refund pool. Tests cover expiry, partial distribution, duplicate claims, transfer rollback and refund rounding.
 
-The V2 contract test suite documents this behavior for accepted delivery with both zero and full distribution attestation. The payout redesign needs separately tracked supplier and shop obligations. Reserve the supplier amount at accepted delivery and keep that earned amount claimable after the cutoff. Make the shop amount payable when distribution is validated. Define which remaining funds donors can reclaim, including allocation and rounding when some funds are already owed. Define outcomes for partial fulfillment, failed transfers, disputes, and unsolicited or residual balances. Test deadline boundaries, repeated claims and payouts, and isolation between supplier and shop transfers. The existing state guards prevent a second successful settlement or refund claim under the current model.
+The new proposal data layout and claim API require a new deployment. The historical instances and their refund behavior remain as recorded. No Testnet transaction in this release verifies the revised claims.
 
 Additional trust and operational boundaries:
 
@@ -42,11 +42,11 @@ Additional trust and operational boundaries:
 - **Voucher verification.** Define eligibility and one-use redemption, authenticated reconciliation, privacy safeguards, and a dispute process. A browser-local QR scan or voucher entry is not an on-chain attestation. Keep beneficiary identities off the public ledger.
 - **Scale and availability.** Proposals, donations, and votes share instance storage. Before scaling, bound campaign data, test ledger-entry limits, and plan storage lifetime and restoration. The constructor accepts a configured asset contract. Production deployment tooling should verify the intended token and its transfer behavior.
 
-## V1 compatibility and UI migration
+## V1 compatibility
 
 The V1 [signed delivery workflow](verified-delivery.md), historical evidence, read-only RPC verification, offline PWA, and browser-local vouchers remain usable on their existing V1 paths. V1’s NGO-funded escrow is a historical reference for the product direction.
 
-A future V2 CLI can reuse the Ed25519 verification primitives, explicit review and approval, and durable transaction-hash recovery patterns. It needs new payloads bound to the V2 contract, campaign, proposal, roles, and quantities. The V1 `fund_batch` and `settle_batch` formats and designated-verifier approval do not match V2. V2 has separate authenticated dispatch, receipt, and issuer calls followed by permissionless settlement. A later UI migration can add wallet signing and V2 ledger checks against the reviewed contract while preserving the historic V1 evidence and clearly labeling simulations.
+A future V2 CLI can reuse the Ed25519 verification primitives, explicit review and approval, and durable transaction-hash recovery patterns. It needs new payloads bound to the V2 contract, campaign, proposal, roles, and quantities. The V1 `fund_batch` and `settle_batch` formats and designated-verifier approval do not match V2. V2 has separate authenticated dispatch, receipt, and issuer calls followed by recipient-authorized claims. Future work includes wallet signing and read-only checks for a fresh V2 deployment.
 
 ## Local validation
 

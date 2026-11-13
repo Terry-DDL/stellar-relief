@@ -352,8 +352,8 @@ function MissionTrackers({ balances, inventory, settled, attested }: Pick<Return
   ] as const
   return <div className="mission-trackers">
     <section className="mission-tracker" aria-labelledby="mission-money">
-      <header><h2 id="mission-money">Where’s the money?</h2><span>{settled ? 'One atomic payment' : attested ? 'Ready to settle · still held' : 'Held until settlement'}</span></header>
-      <dl className="mission-money" data-settled={settled}>
+      <header><h2 id="mission-money">Where’s the money?</h2><span>{settled && balances.supplier > 0 ? 'Both payouts recorded' : attested && !settled ? 'Shop payment ready' : balances.supplier > 0 ? 'Supplier paid' : 'Held pending claims'}</span></header>
+      <dl className="mission-money" data-settled={settled && balances.supplier > 0}>
         {([
           ['Relief Contract', 'Currently held', 'lock', balances.contract],
           ['Supplier', 'Received from this order', 'wallet', balances.supplier],
@@ -365,9 +365,9 @@ function MissionTrackers({ balances, inventory, settled, attested }: Pick<Return
           <dd><progress value={amount} max={target} aria-label={`${label} share of the ${target} USDC sample budget`} /></dd>
         </div>)}
       </dl>
-      {settled && <div className="mission-transfers mission-arrival" aria-label="One atomic transfer from the Relief Contract">
-        <span><Icon name="arrow" size={14} /> {supplierAmount} to Supplier</span>
-        <span><Icon name="arrow" size={14} /> {shopAmount} to Local Shop</span>
+      {(balances.supplier > 0 || balances.shop > 0) && <div className="mission-transfers mission-arrival" aria-label="Sample payouts from the Relief Contract">
+        {balances.supplier > 0 && <span><Icon name="arrow" size={14} /> {supplierAmount} to Supplier</span>}
+        {balances.shop > 0 && <span><Icon name="arrow" size={14} /> {shopAmount} to Local Shop</span>}
       </div>}
     </section>
     <section className="mission-tracker" aria-labelledby="mission-goods">
@@ -402,7 +402,7 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
   const [notice, setNotice] = useState('')
   const [voucherCode, setVoucherCode] = useState('')
   const stageTitle = useRef<HTMLHeadingElement>(null)
-  const { total, tallies, dispatched, received, distributed, balances, inventory } = summarize(sample)
+  const { total, tallies, dispatched, received, distributed, balances, inventory, supplierPaid } = summarize(sample)
   const winner = sample.winner === null ? null : proposals[sample.winner]
 
   useEffect(() => {
@@ -448,22 +448,23 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
   const donorName = (index: number) => index === 0 ? 'Donor A' : 'Donor B'
   const mission = winner ?? proposals[0]
   const winningWeight = sample.winner === null ? 0 : tallies[sample.winner]
-  const resumeStep = sample.attested ? 5 : received ? 4 : dispatched ? 3 : winner ? 2 : total === target ? 1 : 0
+  const resumeStep = received && !supplierPaid ? 3 : sample.attested ? 5 : received ? 4 : dispatched ? 3 : winner ? 2 : total === target ? 1 : 0
   const stageHint = [
     'Donations go to the contract. Families receive kits.',
     'Donors decide which order can use the pool.',
     'The supplier checks committed funds before sending goods.',
     'A separate shop account acknowledges receipt. The two declarations do not prove physical delivery.',
     'Each voucher moves one kit to a family. A separate issuer attests the total.',
-    'The contract releases both payments after full distribution is attested.',
+    'The shop claims its share after full distribution is attested.',
   ][step]
   const nextRequirement = total < target ? 'Fund the pool'
     : !winner ? 'Close voting on a winning proposal'
     : !dispatched ? 'Declare dispatch'
     : !received ? 'Confirm shop receipt'
+    : !supplierPaid ? 'Pay the supplier'
     : distributed < quantity ? 'Redeem the remaining vouchers'
     : !sample.attested ? 'Attest distribution'
-    : !sample.settled ? 'Release both payments' : 'Inspect the recorded Testnet proof'
+    : !sample.settled ? 'Pay the local shop' : 'Inspect the recorded Testnet proof'
 
   return <>
     {activeStep === null && <section className="guided-hero" aria-labelledby="guided-heading">
@@ -554,13 +555,15 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
 
         {step === 2 && <Card title="Procurement Order #001">
           <p className="v2-total"><strong>{winner ?? 'Awaiting the vote'}</strong> · {quantity} food and water kits</p>
-          <p className="card-description">{supplierAmount} USDC allocated to the supplier, payable at settlement. On-chain, the designated supplier signs the dispatch declaration.</p>
+          <p className="card-description">{supplierAmount} USDC allocated to the supplier, claimable after shop receipt. On-chain, the designated supplier signs the dispatch declaration.</p>
           <button type="button" className="button primary" disabled={!winner || Boolean(dispatched)} onClick={() => void change({ type: 'dispatch' })}>{dispatched ? '3 kits dispatched in the sample' : 'Simulate dispatch of 3 kits'}</button>
           <div className="v2-proof"><Tag>Recorded Testnet evidence</Tag><Link href={v2Evidence.contractUrl}>Inspect long-running funding pool</Link><Link href={v2Explorer + 'f17872955c55f488c0b5be75ab632fa5dd728cde1fc578d72e0927d5ed8c77d9'}>Supplier declaration · separate completed campaign</Link></div>
         </Card>}
 
         {step === 3 && <Card title="A second account confirms the same kits">
           <button type="button" className="button primary" disabled={!dispatched || Boolean(received)} onClick={() => void change({ type: 'receive' })}>{received ? '3 kits received in the sample' : 'Simulate receipt of 3 kits'}</button>
+          {received > 0 && <button type="button" className="button primary" disabled={supplierPaid}
+            onClick={() => void change({ type: 'paySupplier' })}>{supplierPaid ? 'Supplier paid in the sample' : 'Simulate 7 USDC supplier payment'}</button>}
           <div className="v2-proof"><Tag>Recorded Testnet transaction</Tag><Link href={v2Explorer + '881ae6920559dec3c1da0c820ca6678cdd52fa48e1399450e2b73f76b45dbc6c'}>Shop declaration · separate completed campaign</Link></div>
         </Card>}
 
@@ -583,17 +586,17 @@ function GuidedDemo({ online, cached }: { online: boolean; cached: boolean }) {
         {step === 5 && <>
           <Card title="Sample settlement" extra={<Tag tone="amber">No real funds move</Tag>}>
             <p className="card-description">{sample.settled
-              ? 'Both payouts are recorded in the sample.'
-              : `One transaction releases ${supplierAmount} USDC to the supplier and ${shopAmount} USDC to the shop after the authorized issuer attests full distribution.`}</p>
+              ? 'The shop payout is recorded in the sample.'
+              : `The shop can claim ${shopAmount} USDC after the authorized issuer attests full distribution. The supplier claims separately after receipt.`}</p>
             <div className="v2-pay">
               <button type="button" className="button primary" disabled={!sample.attested || sample.settled}
-                onClick={() => void change({ type: 'settle' })}>{sample.settled ? 'Sample settlement complete' : 'Simulate 7 + 3 USDC settlement'}</button>
+                onClick={() => void change({ type: 'settle' })}>{sample.settled ? 'Shop paid in the sample' : 'Simulate 3 USDC shop payment'}</button>
             </div>
           </Card>
           <Card title="Real Stellar Testnet Proof" extra={<Tag>Separate completed Testnet campaign</Tag>}>
             <p className="card-description">The short-duration campaign paid 7 USDC to its supplier and 3 USDC to its shop in one confirmed transaction. It has its own contract and transaction history.</p>
             <div className="v2-proof"><Link href={v2Evidence.demoSettlementTx}>View confirmed V2 settlement</Link><Link href={v2Evidence.demoContractUrl}>View short-duration contract</Link><Link href={v2Explorer + '8028310be8d9fc92348674ccfd9e494c838de216ee6137db8e52f5f85575d719'}>Recorded issuer attestation</Link></div>
-            <p className="v2-limitations"><strong>Prototype limits.</strong> Separate payouts are not implemented. Deadline refunds can still leave an accepted delivery unpaid.</p>
+            <p className="v2-limitations"><strong>Historical evidence.</strong> This transaction used the earlier contract. The separate claims and refund protections in this release have local tests and no new Testnet deployment.</p>
           </Card>
         </>}
       </section>

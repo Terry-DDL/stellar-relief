@@ -18,6 +18,7 @@ type State = {
   winner: Choice | null
   field: Demo
   attested: boolean
+  supplierPaid?: boolean
   settled: boolean
 }
 
@@ -25,7 +26,7 @@ type Action =
   | { type: 'donate'; donor: Choice }
   | { type: 'vote'; donor: Choice; proposal: Choice }
   | { type: 'redeem'; code: string }
-  | { type: 'approve' | 'dispatch' | 'receive' | 'attest' | 'settle' }
+  | { type: 'approve' | 'dispatch' | 'receive' | 'attest' | 'paySupplier' | 'settle' }
 
 export function start(): State {
   return { deposits: [false, false], votes: [null, null], winner: null,
@@ -39,22 +40,24 @@ export function summarize(state: State) {
   const dispatched = state.field.delivery?.quantity ?? 0
   const received = state.field.delivery?.receipt?.quantity ?? 0
   const distributed = state.field.redemptions.length
-  const balances = state.settled
-    ? { contract: 0, supplier: supplierAmount, shop: shopAmount }
-    : { contract: total, supplier: 0, shop: 0 }
+  // Earlier saved demos settled both shares together.
+  const supplierPaid = state.supplierPaid ?? state.settled
+  const supplier = supplierPaid ? supplierAmount : 0
+  const shop = state.settled ? shopAmount : 0
+  const balances = { contract: total - supplier - shop, supplier, shop }
   const inventory = {
     supplier: quantity - dispatched,
     transit: dispatched - received,
     shop: received - distributed,
     families: distributed,
   }
-  return { total, tallies, dispatched, received, distributed, balances, inventory }
+  return { total, tallies, dispatched, received, distributed, balances, inventory, supplierPaid }
 }
 
 export function update(state: State, action: Action, at: string): { state: State; message: string } {
   const done = (changes: Partial<State>, message: string) => ({ state: { ...state, ...changes }, message })
   const unchanged = (message: string) => ({ state, message })
-  const { total, tallies, distributed } = summarize(state)
+  const { total, tallies, distributed, supplierPaid } = summarize(state)
   switch (action.type) {
     case 'donate': {
       if (state.deposits[action.donor]) return unchanged('This donor has already contributed.')
@@ -91,9 +94,14 @@ export function update(state: State, action: Action, at: string): { state: State
     }
     case 'attest':
       if (distributed !== quantity || state.attested) return unchanged('Attestation requires three redeemed sample vouchers and can only be recorded once.')
-      return done({ attested: true }, `Issuer confirmed ${distributed} kits in the sample. Funds are still held.`)
+      return done({ attested: true }, `Issuer confirmed ${distributed} kits in the sample. The shop can now claim payment.`)
+    case 'paySupplier':
+      if (state.field.delivery?.receipt?.quantity !== quantity || supplierPaid) {
+        return unchanged('Supplier payment requires an accepted receipt and can only be recorded once.')
+      }
+      return done({ supplierPaid: true }, 'Sample paid 7 USDC to Supplier. The shop share is still in the contract.')
     case 'settle':
-      if (!state.attested || state.settled) return unchanged('Settlement requires an issuer attestation and can only be recorded once.')
-      return done({ settled: true }, `Sample paid ${supplierAmount} USDC to Supplier and ${shopAmount} USDC to Local Shop together.`)
+      if (!state.attested || state.settled) return unchanged('Shop payment requires an issuer attestation and can only be recorded once.')
+      return done({ settled: true, supplierPaid }, 'Sample paid 3 USDC to Local Shop.')
   }
 }
